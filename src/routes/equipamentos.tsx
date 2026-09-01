@@ -1,7 +1,10 @@
 import { Layout } from "@/components/Layout";
-import { Search, Smartphone, Laptop, Monitor, Printer, Tablet, Gamepad2, Edit2, X, History, Clock, CheckCircle2 } from "lucide-react";
+import { Search, Smartphone, Laptop, Monitor, Printer, Tablet, Gamepad2, Edit2, X, Camera, Upload, PenLine } from "lucide-react";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
-import { useState, useEffect } from "react";
+import { salvarClientesFirebase, salvarEdicoesFirebase } from "@/lib/firebaseSync";
+import { SignatureCanvas } from "@/components/SignatureCanvas";
+import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica } from "@/lib/osPublica";
+import { useState, useEffect, useRef } from "react";
 
 const tipoIcon: Record<string, typeof Smartphone> = {
   Smartphone,
@@ -29,6 +32,16 @@ export function EquipamentosPage() {
   const [locais, setLocais] = useState<any[]>([]);
   const [staticEdits, setStaticEdits] = useState<Record<string, any>>({});
   const [editando, setEditando] = useState<any>(null);
+  const [assinaturaErro, setAssinaturaErro] = useState("");
+  const fotoDepoisRef = useRef<HTMLInputElement>(null);
+
+  const escolherFotoDepois = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = event.target.files?.[0];
+    if (!arquivo) return;
+    const leitor = new FileReader();
+    leitor.onload = () => setEditando((atual: any) => ({ ...atual, fotoDepois: leitor.result as string }));
+    leitor.readAsDataURL(arquivo);
+  };
 
   const carregar = () => {
     try {
@@ -44,15 +57,22 @@ export function EquipamentosPage() {
     // Recarrega quando o usuário volta pra esta aba/página
     window.addEventListener("focus", carregar);
     window.addEventListener("storage", carregar);
+    window.addEventListener("sos-firebase-update", carregar);
     return () => {
       window.removeEventListener("focus", carregar);
       window.removeEventListener("storage", carregar);
+      window.removeEventListener("sos-firebase-update", carregar);
     };
   }, []);
 
   const salvarEdicao = (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!editando) { setEditando(null); return; }
+    if (editando.status === "Entregue" && !editando.assinaturaEntrega) {
+      setAssinaturaErro("Colete a assinatura do cliente antes de confirmar a entrega.");
+      return;
+    }
+    setAssinaturaErro("");
 
     if (editando.clientId) {
       // Local equipment - update sos_clientes
@@ -73,12 +93,18 @@ export function EquipamentosPage() {
                   tecnico: editando.tecnico,
                   dataRetirada: editando.dataRetirada,
                   horaRetirada: editando.horaRetirada,
+                  fotoAntes: editando.fotoAntes || editando.fotoLocal || "",
+                  fotoDepois: editando.fotoDepois || "",
+                  aprovacaoOrcamento: editando.aprovacaoOrcamento || "pendente",
+                  assinaturaEntrega: editando.assinaturaEntrega || "",
+                  assinaturaEm: editando.status === "Entregue" ? (editando.assinaturaEm || new Date().toISOString()) : "",
                 }
               };
             }
             return c;
           });
           localStorage.setItem("sos_clientes", JSON.stringify(novos));
+          void salvarClientesFirebase(novos);
         }
       } catch {}
     } else {
@@ -96,15 +122,26 @@ export function EquipamentosPage() {
             tecnico: editando.tecnico,
             dataRetirada: editando.dataRetirada,
             horaRetirada: editando.horaRetirada,
+            fotoAntes: editando.fotoAntes || editando.fotoLocal || "",
+            fotoDepois: editando.fotoDepois || "",
+            aprovacaoOrcamento: editando.aprovacaoOrcamento || "pendente",
+            assinaturaEntrega: editando.assinaturaEntrega || "",
+            assinaturaEm: editando.status === "Entregue" ? (editando.assinaturaEm || new Date().toISOString()) : "",
           }
         };
         localStorage.setItem("sos_eq_static_edits", JSON.stringify(novosEdits));
+        void salvarEdicoesFirebase(novosEdits);
+        void salvarOSPublica(criarRegistroOSPublica({
+          ...editando,
+          publicToken: tokenOSPublica(editando.numeroOS || editando.id),
+        }, tokenOSPublica(editando.numeroOS || editando.id)));
       } catch {}
     }
 
     // Re-read everything from localStorage to keep UI in sync
     carregar();
     setEditando(null);
+    setAssinaturaErro("");
   };
 
   const eqLocais = locais
@@ -126,6 +163,11 @@ export function EquipamentosPage() {
       dataRetirada: c.os.dataRetirada,
       horaRetirada: c.os.horaRetirada,
       fotoLocal: c.os.fotoEquipamento,
+      fotoAntes: c.os.fotoAntes || c.os.fotoEquipamento,
+      fotoDepois: c.os.fotoDepois || "",
+      aprovacaoOrcamento: c.os.aprovacaoOrcamento || "pendente",
+      assinaturaEntrega: c.os.assinaturaEntrega || "",
+      assinaturaEm: c.os.assinaturaEm || "",
       clientId: c.id,
       numeroOS: c.os.numero,
     }));
@@ -144,10 +186,11 @@ export function EquipamentosPage() {
   });
 
   // Ativos = not Entregue
-  const ativos = [
+  const ativosMerge = [
     ...eqLocais.filter(e => e.status !== "Entregue"),
     ...eqIniciais.filter((e: any) => e.status !== "Entregue"),
   ];
+  const ativos = ativosMerge.filter((v, i, a) => a.findIndex(t => t.cliente === v.cliente && t.modelo === v.modelo) === i);
 
   // Histórico = Entregue (local + static)
   const historico = [
@@ -189,7 +232,7 @@ export function EquipamentosPage() {
       <div key={eq.id} className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md relative group">
         <button
             onClick={() => setEditando(eq)}
-            className="absolute top-4 right-4 z-10 p-2 bg-background/80 backdrop-blur-sm border border-border rounded-lg text-muted-foreground hover:text-primary hover:border-primary transition-all opacity-0 group-hover:opacity-100 shadow-sm"
+            className="absolute top-4 right-4 z-10 p-2 bg-background/80 backdrop-blur-sm border border-border rounded-lg text-muted-foreground hover:text-primary hover:border-primary transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 shadow-sm"
             title="Editar informações"
           >
             <Edit2 className="h-4 w-4" />
@@ -212,6 +255,15 @@ export function EquipamentosPage() {
             <Icon className="h-10 w-10" />
             <span className="text-xs font-medium">Sem foto</span>
           </div>
+        </div>
+
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          {[{ label: "Antes", src: eq.fotoAntes || eq.fotoLocal }, { label: "Depois", src: eq.fotoDepois }].map((foto) => (
+            <div key={foto.label} className="overflow-hidden rounded-lg border border-border bg-muted/30">
+              <p className="border-b border-border px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{foto.label}</p>
+              {foto.src ? <img src={foto.src} alt={`Foto ${foto.label}`} onClick={() => window.open(foto.src, "_blank")} title="Clique para ver a foto inteira" className="h-32 w-full cursor-zoom-in bg-white object-contain p-1" /> : <div className="flex h-32 items-center justify-center text-[10px] text-muted-foreground"><Camera className="mr-1 h-3.5 w-3.5" /> Sem foto</div>}
+            </div>
+          ))}
         </div>
 
         <div className="flex items-start justify-between">
@@ -240,6 +292,12 @@ export function EquipamentosPage() {
             <span className="text-muted-foreground">Defeito relatado</span>
             <span className="font-medium text-foreground">{eq.defeito}</span>
           </div>
+          {eq.aprovacaoOrcamento && eq.aprovacaoOrcamento !== "pendente" && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Orçamento</span>
+              <span className={`font-bold ${eq.aprovacaoOrcamento === "aprovado" ? "text-emerald-600" : "text-red-500"}`}>{eq.aprovacaoOrcamento === "aprovado" ? "Aprovado pelo cliente" : "Recusado pelo cliente"}</span>
+            </div>
+          )}
           {eq.dataEntrada && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Entrada</span>
@@ -310,6 +368,7 @@ export function EquipamentosPage() {
                   {["Aguardando", "Em análise", "Em reparo", "Aguardando peça", "Concluído", "Entregue"].map(s => (
                     <option key={s}>{s}</option>
                   ))}
+                  <option>Pronto</option>
                 </select>
               </div>
               <div>
@@ -320,7 +379,7 @@ export function EquipamentosPage() {
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Defeito</label>
                 <textarea value={editando.defeito || ""} onChange={e => setEditando({...editando, defeito: e.target.value})} className={`${inputCls} resize-none`} rows={2} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Técnico</label>
                   <input type="text" value={editando.tecnico || ""} onChange={e => setEditando({...editando, tecnico: e.target.value})} className={inputCls} />
@@ -331,9 +390,21 @@ export function EquipamentosPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-border bg-muted/30 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Foto antes</p>
+                  {editando.fotoAntes || editando.fotoLocal ? <img src={editando.fotoAntes || editando.fotoLocal} alt="Antes do reparo" className="h-24 w-full rounded-md object-cover" /> : <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">Sem foto</div>}
+                </div>
+                <button type="button" onClick={() => fotoDepoisRef.current?.click()} className="rounded-lg border border-dashed border-input bg-muted/30 p-3 text-left hover:border-primary">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Foto depois</p>
+                  {editando.fotoDepois ? <img src={editando.fotoDepois} alt="Depois do reparo" className="h-24 w-full rounded-md object-cover" /> : <span className="flex h-24 flex-col items-center justify-center gap-1 text-xs text-muted-foreground"><Camera className="h-5 w-5" />Adicionar resultado</span>}
+                  <input ref={fotoDepoisRef} type="file" accept="image/*" className="hidden" onChange={escolherFotoDepois} />
+                </button>
+              </div>
+
               <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">📦 Devolução / Entrega ao cliente</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs text-muted-foreground">Data</label>
                     <input type="text" value={editando.dataRetirada || ""} onChange={e => setEditando({...editando, dataRetirada: maskDate(e.target.value)})} className={inputCls} placeholder="DD/MM/AAAA" />
@@ -344,6 +415,15 @@ export function EquipamentosPage() {
                   </div>
                 </div>
               </div>
+
+              {editando.status === "Entregue" && (
+                <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-2">
+                  <div className="flex items-center gap-2"><PenLine className="h-4 w-4 text-primary" /><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assinatura na entrega</p></div>
+                  <p className="text-xs text-muted-foreground">Peça para o cliente assinar no campo abaixo.</p>
+                  <SignatureCanvas value={editando.assinaturaEntrega} onChange={(assinatura) => { setAssinaturaErro(""); setEditando({ ...editando, assinaturaEntrega: assinatura }); }} />
+                  {assinaturaErro && <p className="text-xs font-medium text-destructive">{assinaturaErro}</p>}
+                </div>
+              )}
 
               <div className="pt-2">
                 <button type="submit" className="w-full rounded-lg bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm">

@@ -5,6 +5,8 @@ import {
   Wrench, CalendarDays, UserCheck, DollarSign, ClipboardList,
 } from "lucide-react";
 import { clientes as clientesIniciais } from "@/lib/dados";
+import { salvarClientesFirebase } from "@/lib/firebaseSync";
+import { gerarTokenOS } from "@/lib/osPublica";
 import { useState, useRef, useEffect } from "react";
 
 type OSVinculada = {
@@ -14,6 +16,8 @@ type OSVinculada = {
   modelo: string;
   serial: string;
   fotoEquipamento: string;
+  fotoAntes?: string;
+  fotoDepois?: string;
   defeito: string;
   servico: string;
   tecnico: string;
@@ -21,6 +25,10 @@ type OSVinculada = {
   dataEntrada: string;
   dataRetirada: string;
   valor: string;
+  publicToken?: string;
+  aprovacaoOrcamento?: "pendente" | "aprovado" | "recusado";
+  assinaturaEntrega?: string;
+  assinaturaEm?: string;
 };
 
 type ClienteCompleto = {
@@ -118,12 +126,26 @@ export function ClientesPage() {
   const [form, setForm] = useState(formVazio());
   const [erros, setErros] = useState<Record<string, string>>({});
   const fotoRef = useRef<HTMLInputElement>(null);
+  const primeiraCarga = useRef(true);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(clientes));
     } catch {}
+
+    if (primeiraCarga.current) {
+      primeiraCarga.current = false;
+      return;
+    }
+
+    void salvarClientesFirebase(clientes);
   }, [clientes]);
+
+  useEffect(() => {
+    const atualizarClientes = () => setClientes(carregarClientes());
+    window.addEventListener("sos-firebase-update", atualizarClientes);
+    return () => window.removeEventListener("sos-firebase-update", atualizarClientes);
+  }, []);
 
   const set = (key: string, val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
@@ -172,12 +194,18 @@ export function ClientesPage() {
         modelo: modeloFinal.trim() || "Não informado",
         serial: "", // Removido IMEI
         fotoEquipamento: form.fotoEquipamento,
+        fotoAntes: form.fotoEquipamento,
+        fotoDepois: "",
         defeito: form.defeito.trim() || "Não relatado",
         servico: form.servico.trim() || "Análise",
         tecnico: form.tecnico,
         statusOS: form.statusOS,
         dataEntrada: form.dataEntrada,
         dataRetirada: form.dataRetirada,
+        publicToken: gerarTokenOS(),
+        aprovacaoOrcamento: "pendente",
+        assinaturaEntrega: "",
+        assinaturaEm: "",
         valor: form.valor.trim() || "A orçar",
       },
     };
@@ -264,92 +292,142 @@ export function ClientesPage() {
               />
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-5 py-3 font-medium">Cliente</th>
-                  <th className="px-5 py-3 font-medium">Contato</th>
-                  <th className="px-5 py-3 font-medium">Cidade</th>
-                  <th className="px-5 py-3 font-medium">Equipamento</th>
-                  <th className="px-5 py-3 font-medium">Status / Datas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtrados.map((c) => (
-                  <tr key={c.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
-                          {c.nome.split(" ").map((n) => n[0]).slice(0, 2).join("")}
-                        </div>
-                        <div>
-                          <p className="font-medium text-foreground">{c.nome}</p>
-                          <p className="text-xs text-muted-foreground">Cód: {c.codigo}</p>
-                        </div>
+          <div className="p-4 space-y-3">
+            {filtrados.map((c) => (
+              <div
+                key={c.id}
+                className="group relative flex items-stretch gap-0 rounded-2xl border border-border bg-card shadow-sm overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-primary/40 hover:-translate-y-1"
+              >
+                <div className={`w-1.5 shrink-0 transition-colors ${c.status === 'Ativo' ? 'bg-emerald-500 group-hover:bg-emerald-400' : 'bg-muted-foreground/30'}`} />
+                
+                <div className="flex flex-1 flex-col lg:flex-row p-5 gap-6 lg:items-center">
+                  
+                  {/* Cliente Info */}
+                  <div className="flex min-w-0 flex-1 items-center gap-4 lg:min-w-[240px]">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-bold shadow-inner">
+                      {c.nome.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-bold text-foreground text-base group-hover:text-primary transition-colors">{c.nome}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span 
+                          className="rounded-md bg-muted px-3 py-1 text-sm font-bold text-foreground font-mono select-all cursor-copy border border-border shadow-sm transition-colors hover:border-primary/50 hover:text-primary"
+                          title="Clique duas vezes ou arraste para copiar"
+                        >
+                          {c.codigo}
+                        </span>
+                        {c.cidade && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                            {c.cidade}
+                          </span>
+                        )}
                       </div>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex flex-col gap-0.5 text-muted-foreground text-xs">
-                        <span className="flex items-center gap-1.5"><Phone className="h-3 w-3" />{c.telefone}</span>
-                        <span className="flex items-center gap-1.5"><Mail className="h-3 w-3" />{c.email}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-muted-foreground text-sm">{c.cidade || "—"}</td>
-                    <td className="px-5 py-3.5">
-                      {c.os ? (
-                        <div className="flex items-center gap-2">
-                          {c.os.fotoEquipamento ? (
-                            <img
-                              src={c.os.fotoEquipamento}
-                              alt={c.os.modelo}
-                              className="h-10 w-10 rounded-lg object-cover ring-1 ring-border shrink-0"
-                            />
-                          ) : (
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                              <Wrench className="h-4 w-4" />
-                            </div>
-                          )}
-                          <div>
-                            <p className="text-xs font-semibold text-foreground">{c.os.marca} {c.os.modelo}</p>
-                            <p className="text-[10px] text-muted-foreground">{c.os.tipoAparel}</p>
-                            {c.os.defeito && <p className="text-[10px] text-muted-foreground italic truncate max-w-[140px]">{c.os.defeito}</p>}
-                          </div>
-                        </div>
+                    </div>
+                  </div>
+
+                  {/* Contato */}
+                  <div className="flex min-w-0 flex-col gap-2 lg:min-w-[160px] lg:border-l lg:border-border/50 lg:pl-6">
+                    <div className="flex items-center gap-2 text-sm text-foreground">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{c.telefone}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-foreground">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      {c.email ? (
+                        <span className="truncate max-w-[180px]">{c.email}</span>
                       ) : (
-                        <span className="text-xs text-muted-foreground">{c.equipamentos} equip.</span>
+                        <span className="text-muted-foreground italic text-xs">Sem e-mail</span>
                       )}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      {c.os ? (
-                        <div className="space-y-0.5">
+                    </div>
+                  </div>
+
+                  {/* Equipamento */}
+                  <div className="min-w-0 flex-1 lg:min-w-[220px] lg:border-l lg:border-border/50 lg:pl-6">
+                    {c.os ? (
+                      <div className="flex items-center gap-3">
+                        <div className="relative shrink-0">
+                           {c.os.fotoEquipamento ? (
+                             <img src={c.os.fotoEquipamento} className="h-12 w-12 rounded-xl object-cover shadow-sm ring-1 ring-border group-hover:ring-primary/50 transition-all" />
+                           ) : (
+                             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted ring-1 ring-border group-hover:ring-primary/50 transition-all">
+                               <Wrench className="h-5 w-5 text-muted-foreground" />
+                             </div>
+                           )}
+                           <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-background ring-1 ring-border shadow-sm text-primary">
+                             <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+                           </div>
+                        </div>
+                        <div className="flex flex-col justify-center">
+                          <p className="font-bold text-sm text-foreground leading-tight">{c.os.marca} {c.os.modelo}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mt-0.5">{c.os.tipoAparel}</p>
+                          {c.os.defeito && <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">{c.os.defeito}</p>}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-full items-center gap-2 text-muted-foreground">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/50 border border-border border-dashed">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+                        </div>
+                        <span className="text-sm font-medium">{c.equipamentos} {c.equipamentos === 1 ? 'Aparelho' : 'Aparelhos'}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status */}
+                  <div className="flex min-w-0 flex-col items-start gap-2 border-t border-border/50 pt-4 lg:mt-0 lg:min-w-[160px] lg:items-end lg:border-l lg:border-t-0 lg:border-border/50 lg:pl-6 lg:pt-0">
+                    {c.os ? (
+                      <>
+                        <div className="flex items-center justify-between w-full lg:w-auto lg:justify-end gap-3 mb-1">
+                          {c.os.valor && (
+                            <span className="text-sm font-bold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                              {(() => {
+                                const valStr = String(c.os.valor);
+                                if (valStr.toLowerCase().includes('orçar') || valStr.toLowerCase().includes('combinar')) return valStr;
+                                const apenasNumeros = valStr.replace(/[^\d.,]/g, '').replace(',', '.');
+                                const num = parseFloat(apenasNumeros);
+                                return isNaN(num) ? valStr : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(num);
+                              })()}
+                            </span>
+                          )}
                           <StatusBadge status={c.os.statusOS} />
-                          <p className="text-[10px] text-muted-foreground">📅 Entrada: {c.os.dataEntrada}</p>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-1 gap-x-6 gap-y-1 w-full lg:w-auto text-left lg:text-right">
+                          <p className="text-[10px] font-medium text-muted-foreground tracking-wide">
+                            Entrada: <span className="text-foreground">{c.os.dataEntrada}</span>
+                          </p>
                           {c.os.dataRetirada && (
-                            <p className="text-[10px] text-muted-foreground">🔄 Retirada: {c.os.dataRetirada}</p>
+                            <p className="text-[10px] font-medium text-muted-foreground tracking-wide">
+                              Retirada: <span className="text-foreground">{c.os.dataRetirada}</span>
+                            </p>
                           )}
                           {c.os.tecnico && (
-                            <p className="text-[10px] text-muted-foreground">👤 {c.os.tecnico}</p>
-                          )}
-                          {c.os.valor && (
-                            <p className="text-[10px] font-semibold text-foreground">{c.os.valor}</p>
+                            <p className="text-[10px] font-medium text-muted-foreground tracking-wide">
+                              Técnico: <span className="text-foreground">{c.os.tecnico}</span>
+                            </p>
                           )}
                         </div>
-                      ) : (
+                      </>
+                    ) : (
+                      <div className="h-full flex items-center">
                         <StatusBadge status={c.status} />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {filtrados.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-5 py-10 text-center text-muted-foreground">
-                      Nenhum cliente encontrado.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            ))}
+            
+            {filtrados.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 text-center rounded-2xl border border-dashed border-border bg-card/50">
+                <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                <p className="text-base font-semibold text-foreground">Nenhum cliente encontrado.</p>
+                <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                  Não localizamos nenhum registro correspondente a "{busca}". Tente buscar por outro termo.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -414,7 +492,7 @@ export function ClientesPage() {
                         placeholder="Digite o nome do cliente" className={inputCls("nome")} autoFocus />
                       {erros.nome && <p className="mt-1 text-xs text-destructive">{erros.nome}</p>}
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
                         <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Telefone <span className="text-destructive">*</span>
@@ -483,7 +561,7 @@ export function ClientesPage() {
                       </select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Marca</label>
                         <select 
@@ -543,11 +621,12 @@ export function ClientesPage() {
                         placeholder="Ex.: Troca de tela, limpeza interna..." className={inputCls()} autoFocus />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
                         <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status da OS</label>
                         <select value={form.statusOS} onChange={(e) => set("statusOS", e.target.value)} className={inputCls()}>
                           {STATUS_OS.map((s) => <option key={s}>{s}</option>)}
+                          <option>Pronto</option>
                         </select>
                       </div>
                       <div>
@@ -557,7 +636,7 @@ export function ClientesPage() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
                         <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           <CalendarDays className="h-3 w-3" /> Data de entrada
@@ -585,7 +664,7 @@ export function ClientesPage() {
                     {/* Resumo */}
                     <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-2">
                       <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">📋 Resumo da entrada</p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      <div className="grid grid-cols-1 gap-x-4 gap-y-1 text-xs sm:grid-cols-2">
                         {[
                           ["Cliente", form.nome],
                           ["Telefone", form.telefone],

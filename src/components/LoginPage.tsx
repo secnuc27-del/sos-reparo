@@ -37,7 +37,7 @@ export function LoginPage() {
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-white transition-all login-enter-anim">
         <div className="flex flex-col items-center gap-6">
           <img
-            src="/logo.png"
+            src={logoUrl}
             alt="SOS Reparo"
             className="h-32 w-auto object-contain logo-enter-zoom"
             style={{ clipPath: "inset(4% 0 18% 0)" }}

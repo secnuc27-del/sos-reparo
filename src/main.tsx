@@ -4,6 +4,8 @@ import { RouterProvider, createRouter, createHashHistory } from "@tanstack/react
 import { routeTree } from "./routeTree";
 import { AuthProvider, useAuth } from "./components/AuthProvider";
 import { LoginPage } from "./components/LoginPage";
+import { ThemeProvider } from "./components/ThemeProvider";
+import { iniciarSincronizacaoFirebase } from "./lib/firebaseSync";
 import "./styles.css";
 
 const hashHistory = createHashHistory();
@@ -21,8 +23,9 @@ declare module "@tanstack/react-router" {
 
 function App() {
   const { isAuthenticated } = useAuth();
+  const isPublicTracking = window.location.hash.startsWith("#/acompanhar/");
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isPublicTracking) {
     return <LoginPage />;
   }
 
@@ -30,10 +33,13 @@ function App() {
 }
 
 const root = document.getElementById("root")!;
+void iniciarSincronizacaoFirebase();
 createRoot(root).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </ThemeProvider>
   </StrictMode>
 );

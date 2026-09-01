@@ -5,6 +5,7 @@ const statusStyles: Record<string, string> = {
   "Aguardando peça": "bg-warning text-warning-foreground",
   "Concluído": "bg-success text-success-foreground",
   "Entregue": "bg-secondary text-secondary-foreground",
+  "Pronto": "bg-success text-success-foreground",
   "Ativo": "bg-success text-success-foreground",
   "Inativo": "bg-muted text-muted-foreground",
 };

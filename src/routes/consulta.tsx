@@ -8,90 +8,99 @@ export function ConsultaPage() {
   const [busca, setBusca] = useState("");
   const [consultou, setConsultou] = useState(false);
   const [resultado, setResultado] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (!busca.trim()) return;
 
-    const termo = busca.toLowerCase().trim();
-    const termoNumeros = termo.replace(/\D/g, "");
+    setLoading(true);
+    setConsultou(false);
+    setResultado(null);
 
-    // 1. Carregar clientes novos salvos
-    let clientesLocais = clientes;
-    try {
-      const salvo = localStorage.getItem("sos_clientes");
-      if (salvo) clientesLocais = JSON.parse(salvo);
-    } catch {}
+    // Simulando um tempo de busca para exibir a animação
+    setTimeout(() => {
+      const termo = busca.toLowerCase().trim();
+      const termoNumeros = termo.replace(/\D/g, "");
 
-    // 2. Converter os clientes que tem OS pro formato que a página espera
-    const ordensLocais = clientesLocais
-      .filter((c: any) => c.os)
-      .map((c: any) => {
-        const isEntregue = c.os.statusOS === "Entregue";
-        const isConcluido = c.os.statusOS === "Concluído" || isEntregue;
-        const isAndamento = c.os.statusOS !== "Aguardando" && !isConcluido;
-        return {
-          numero: c.os.numero,
-          codigoCliente: c.codigo,
-          cliente: c.nome,
-          telefone: c.telefone,
-          equipamento: `${c.os.marca} ${c.os.modelo}`.trim(),
-          servico: c.os.servico || "Análise e orçamento",
-          status: c.os.statusOS,
-          previsao: c.os.dataRetirada || "A definir",
-          valor: c.os.valor || "A definir",
-          tecnico: c.os.tecnico || "A definir",
-          fotoLocal: c.os.fotoEquipamento,
-          etapas: [
-            { label: "Equipamento recebido", data: c.os.dataEntrada, feito: true, atual: c.os.statusOS === "Aguardando" },
-            { label: "Análise técnica", data: "-", feito: isAndamento || isConcluido, atual: c.os.statusOS === "Em análise" },
-            { label: "Reparo em andamento", data: "-", feito: c.os.statusOS === "Em reparo" || isConcluido, atual: c.os.statusOS === "Em reparo" },
-            { label: "Pronto para retirada", data: c.os.dataRetirada || "-", feito: isConcluido, atual: c.os.statusOS === "Concluído" },
-            { 
-              label: "Entregue ao cliente", 
-              data: isEntregue ? `${c.os.dataRetirada || "-"} ${c.os.horaRetirada || ""}`.trim() : "-", 
-              feito: isEntregue, 
-              atual: false 
-            },
-          ]
-        };
-      });
+      // 1. Carregar clientes novos salvos
+      let clientesLocais = clientes;
+      try {
+        const salvo = localStorage.getItem("sos_clientes");
+        if (salvo) clientesLocais = JSON.parse(salvo);
+      } catch {}
 
-    // 3. Juntar com as ordens base (sem duplicar as base)
-    const ordensCombinadas = [
-      ...ordensLocais,
-      ...ordensDeServico.filter(osBase => !ordensLocais.find((no: any) => no.numero === osBase.numero))
-    ];
+      // 2. Converter os clientes que tem OS pro formato que a página espera
+      const ordensLocais = clientesLocais
+        .filter((c: any) => c.os)
+        .map((c: any) => {
+          const isEntregue = c.os.statusOS === "Entregue";
+          const isConcluido = c.os.statusOS === "Concluído" || isEntregue;
+          const isAndamento = c.os.statusOS !== "Aguardando" && !isConcluido;
+          return {
+            numero: c.os.numero,
+            codigoCliente: c.codigo,
+            cliente: c.nome,
+            telefone: c.telefone,
+            equipamento: `${c.os.marca} ${c.os.modelo}`.trim(),
+            servico: c.os.servico || "Análise e orçamento",
+            status: c.os.statusOS,
+            previsao: c.os.dataRetirada || "A definir",
+            valor: c.os.valor || "A definir",
+            tecnico: c.os.tecnico || "A definir",
+            fotoLocal: c.os.fotoEquipamento,
+            etapas: [
+              { label: "Equipamento recebido", data: c.os.dataEntrada, feito: true, atual: c.os.statusOS === "Aguardando" },
+              { label: "Análise técnica", data: "-", feito: isAndamento || isConcluido, atual: c.os.statusOS === "Em análise" },
+              { label: "Reparo em andamento", data: "-", feito: c.os.statusOS === "Em reparo" || isConcluido, atual: c.os.statusOS === "Em reparo" },
+              { label: "Pronto para retirada", data: c.os.dataRetirada || "-", feito: isConcluido, atual: c.os.statusOS === "Concluído" },
+              { 
+                label: "Entregue ao cliente", 
+                data: isEntregue ? `${c.os.dataRetirada || "-"} ${c.os.horaRetirada || ""}`.trim() : "-", 
+                feito: isEntregue, 
+                atual: false 
+              },
+            ]
+          };
+        });
 
-    // Busca nas ordens
-    let osEncontrada = ordensCombinadas.find(
-      (os) =>
-        os.numero.toLowerCase() === termo ||
-        os.codigoCliente.toLowerCase() === termo ||
-        (termoNumeros && os.telefone.replace(/\D/g, "") === termoNumeros)
-    );
+      // 3. Juntar com as ordens base (sem duplicar as base)
+      const ordensCombinadas = [
+        ...ordensLocais,
+        ...ordensDeServico.filter(osBase => !ordensLocais.find((no: any) => no.numero === osBase.numero))
+      ];
 
-    // Se não achou a OS, busca pelo nome do cliente e pega a OS dele
-    if (!osEncontrada) {
-      const clienteAchado = clientesLocais.find((c: any) =>
-        c.nome.toLowerCase().includes(termo)
+      // Busca nas ordens
+      let osEncontrada = ordensCombinadas.find(
+        (os) =>
+          os.numero.toLowerCase() === termo ||
+          os.codigoCliente.toLowerCase() === termo ||
+          (termoNumeros && os.telefone.replace(/\D/g, "") === termoNumeros)
       );
-      if (clienteAchado) {
-        osEncontrada = ordensCombinadas.find(
-          (os) => os.codigoCliente === clienteAchado.codigo
-        );
-      }
-    }
 
-    setResultado(osEncontrada ?? null);
-    setConsultou(true);
+      // Se não achou a OS, busca pelo nome do cliente e pega a OS dele
+      if (!osEncontrada) {
+        const clienteAchado = clientesLocais.find((c: any) =>
+          c.nome.toLowerCase().includes(termo)
+        );
+        if (clienteAchado) {
+          osEncontrada = ordensCombinadas.find(
+            (os) => os.codigoCliente === clienteAchado.codigo
+          );
+        }
+      }
+
+      setResultado(osEncontrada ?? null);
+      setConsultou(true);
+      setLoading(false);
+    }, 1200); // 1.2 segundos de animação
   };
 
   return (
     <Layout>
       <div className="mx-auto max-w-3xl space-y-6">
         <div className="text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
             <PackageSearch className="h-7 w-7" />
           </div>
           <h2 className="mt-4 text-2xl font-bold tracking-tight text-foreground">Consulta de Ordem de Serviço</h2>
@@ -100,34 +109,54 @@ export function ConsultaPage() {
           </p>
         </div>
 
-        <form className="flex gap-2" onSubmit={handleSearch}>
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <form className="flex flex-col gap-2 sm:flex-row" onSubmit={handleSearch}>
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
             <input
               type="text"
               value={busca}
               onChange={(e) => { setBusca(e.target.value); setConsultou(false); }}
               placeholder="Ex.: Fernanda Lima, CLI-0016, OS-2026-0143 ou (68) 95555-7890"
-              className="w-full rounded-lg border border-input bg-card py-3 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full rounded-xl border border-input bg-card py-3 pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50"
+              disabled={loading}
             />
           </div>
           <button
             type="submit"
-            className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            disabled={loading || !busca.trim()}
+            className="w-full rounded-xl bg-primary px-7 py-3 text-sm font-bold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow disabled:opacity-50 disabled:pointer-events-none active:scale-95 sm:w-auto"
           >
-            Consultar
+            {loading ? "Buscando..." : "Consultar"}
           </button>
         </form>
 
-        {consultou && !resultado && (
-          <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
-            Nenhuma Ordem de Serviço encontrada para <span className="font-medium text-foreground">"{busca}"</span>. Verifique se digitou corretamente.
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-16 animate-in fade-in zoom-in-95 duration-500">
+            <div className="relative flex h-24 w-24 items-center justify-center">
+              {/* Círculo pulsante ao fundo */}
+              <div className="absolute h-full w-full animate-[ping_1.5s_ease-in-out_infinite] rounded-full bg-primary/20" />
+              {/* Spinner giratório */}
+              <div className="absolute h-20 w-20 animate-spin rounded-full border-4 border-muted border-t-primary border-r-primary/50" />
+              {/* Ícone no centro */}
+              <Search className="h-8 w-8 text-primary animate-pulse" />
+            </div>
+            <p className="mt-6 text-sm font-semibold text-primary animate-pulse tracking-wide uppercase">Buscando informações...</p>
           </div>
         )}
 
-        {consultou && resultado && (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-border bg-card p-6">
+        {consultou && !resultado && !loading && (
+          <div className="rounded-2xl border border-border bg-card p-10 text-center animate-in zoom-in-95 fade-in duration-300 shadow-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted mb-4">
+              <Search className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <p className="text-base text-muted-foreground">Nenhuma Ordem de Serviço encontrada para <span className="font-bold text-foreground">"{busca}"</span>.</p>
+            <p className="mt-1 text-sm text-muted-foreground/70">Verifique se digitou corretamente o número da OS ou código do cliente.</p>
+          </div>
+        )}
+
+        {consultou && resultado && !loading && (
+          <div className="space-y-4 animate-in slide-in-from-bottom-8 fade-in duration-700 ease-out">
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-sm text-muted-foreground">Ordem de Serviço</p>
@@ -185,7 +214,7 @@ export function ConsultaPage() {
                 </h3>
                 {/* progresso geral */}
                 <span className="text-xs font-semibold text-primary">
-                  {resultado.etapas.filter(e => e.feito).length}/{resultado.etapas.length} etapas
+                  {resultado.etapas.filter((e: any) => e.feito).length}/{resultado.etapas.length} etapas
                 </span>
               </div>
 
@@ -195,14 +224,14 @@ export function ConsultaPage() {
                   className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-primary transition-all duration-700"
                   style={{
                     width: `${Math.round(
-                      (resultado.etapas.filter(e => e.feito).length / resultado.etapas.length) * 100
+                      (resultado.etapas.filter((e: any) => e.feito).length / resultado.etapas.length) * 100
                     )}%`,
                   }}
                 />
               </div>
 
               <ol className="space-y-0">
-                {resultado.etapas.map((etapa, i) => {
+                {resultado.etapas.map((etapa: any, i: number) => {
                   const isLast = i === resultado.etapas.length - 1;
                   const nextFeito = resultado.etapas[i + 1]?.feito;
 

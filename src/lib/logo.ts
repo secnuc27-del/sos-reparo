@@ -1,1 +1,1 @@
-export const logoUrl = "/logo.png";
+export const logoUrl = `${import.meta.env.BASE_URL}logo.png`;
