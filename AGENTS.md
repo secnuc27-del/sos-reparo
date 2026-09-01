@@ -8,3 +8,7 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+## Contexto do SOS Reparo
+
+Antes de trabalhar neste projeto, leia [`CONTEXTO-PROJETO-IA.md`](./CONTEXTO-PROJETO-IA.md). O documento contém a identidade da empresa, as funcionalidades existentes, a estrutura dos arquivos, o Firebase, o GitHub Pages, o estado atual do Git e as regras para continuar o desenvolvimento sem perder recursos.
