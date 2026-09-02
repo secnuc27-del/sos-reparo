@@ -11,6 +11,7 @@ const PUBLIC_PATH = "publicOS";
 
 let inicializacao: Promise<void> | null = null;
 let listeners: Unsubscribe[] = [];
+const CLIENTES_PENDENTES_STORAGE_KEY = 'sos_clientes_pendentes';
 
 function lerLocal<T>(key: string): T | null {
   try {
@@ -39,16 +40,74 @@ function normalizarArray(value: unknown): unknown[] {
   return [];
 }
 
+function chaveCliente(cliente: unknown) {
+  if (cliente && typeof cliente === 'object') {
+    const registro = cliente as Record<string, unknown>;
+    if (registro.id !== undefined && registro.id !== null) return 'id:' + String(registro.id);
+    if (registro.codigo !== undefined && registro.codigo !== null) return 'codigo:' + String(registro.codigo);
+  }
+  return JSON.stringify(cliente);
+}
+
+function lerClientesPendentes() {
+  const pendentes = lerLocal<unknown>(CLIENTES_PENDENTES_STORAGE_KEY);
+  return Array.isArray(pendentes) ? pendentes : [];
+}
+
+function gravarClientesPendentes(clientes: unknown[]) {
+  gravarLocal(CLIENTES_PENDENTES_STORAGE_KEY, clientes);
+}
+
+function limparClientesPendentes() {
+  try {
+    localStorage.removeItem('sos_clientes_pendentes');
+  } catch {
+    // O cadastro principal continua salvo no localStorage.
+  }
+}
+
+function adicionarPendentes(clientesBase: unknown[], pendentes: unknown[]) {
+  const chavesBase = new Set(clientesBase.map(chaveCliente));
+  return [
+    ...pendentes.filter((cliente) => !chavesBase.has(chaveCliente(cliente))),
+    ...clientesBase,
+  ];
+}
+
+function pendentesQueNaoVieram(clientesRemotos: unknown[], pendentes: unknown[]) {
+  const chavesRemotas = new Set(clientesRemotos.map(chaveCliente));
+  return pendentes.filter((cliente) => !chavesRemotas.has(chaveCliente(cliente)));
+}
+
+export function marcarClienteLocalPendente(cliente: unknown) {
+  const pendentes = lerClientesPendentes();
+  const chave = chaveCliente(cliente);
+  gravarClientesPendentes([
+    cliente,
+    ...pendentes.filter((item) => chaveCliente(item) !== chave),
+  ]);
+}
+
+export function existemClientesPendentes() {
+  return lerClientesPendentes().length > 0;
+}
+
 async function prepararDadosIniciais() {
   const clientesRef = ref(database, CLIENTES_PATH);
   const clientesSnapshot = await get(clientesRef);
+  const clientesPendentes = lerClientesPendentes();
 
   if (clientesSnapshot.exists()) {
-    gravarLocal(CLIENTES_STORAGE_KEY, normalizarArray(clientesSnapshot.val()));
+    const clientesRemotos = normalizarArray(clientesSnapshot.val());
+    const pendentes = pendentesQueNaoVieram(clientesRemotos, clientesPendentes);
+    gravarLocal(CLIENTES_STORAGE_KEY, adicionarPendentes(clientesRemotos, pendentes));
+    if (pendentes.length === 0 && clientesPendentes.length > 0) limparClientesPendentes();
+    else if (pendentes.length > 0) gravarClientesPendentes(pendentes);
   } else {
     const clientesLocais = lerLocal<unknown[]>(CLIENTES_STORAGE_KEY) ?? clientesIniciais;
-    gravarLocal(CLIENTES_STORAGE_KEY, clientesLocais);
-    await set(clientesRef, clientesLocais);
+    const clientesParaUsar = adicionarPendentes(clientesLocais, clientesPendentes);
+    gravarLocal(CLIENTES_STORAGE_KEY, clientesParaUsar);
+    await set(clientesRef, clientesParaUsar);
   }
 
   const edicoesRef = ref(database, EDICOES_PATH);
@@ -66,7 +125,21 @@ function iniciarListeners() {
   listeners = [
     onValue(ref(database, CLIENTES_PATH), (snapshot) => {
       if (!snapshot.exists()) return;
-      gravarLocal(CLIENTES_STORAGE_KEY, normalizarArray(snapshot.val()));
+
+      const clientesRemotos = normalizarArray(snapshot.val());
+      const clientesPendentes = lerClientesPendentes();
+      const pendentes = pendentesQueNaoVieram(clientesRemotos, clientesPendentes);
+
+      // Uma resposta antiga do Firebase não pode apagar cliente recém-criado.
+      if (pendentes.length > 0) {
+        gravarLocal(CLIENTES_STORAGE_KEY, adicionarPendentes(clientesRemotos, pendentes));
+        gravarClientesPendentes(pendentes);
+        avisarAtualizacao();
+        return;
+      }
+
+      if (clientesPendentes.length > 0) limparClientesPendentes();
+      gravarLocal(CLIENTES_STORAGE_KEY, clientesRemotos);
       avisarAtualizacao();
     }, (error) => console.warn("Firebase clientes indisponível:", error.message)),
     onValue(ref(database, EDICOES_PATH), (snapshot) => {

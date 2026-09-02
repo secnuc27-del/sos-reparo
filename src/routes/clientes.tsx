@@ -9,6 +9,11 @@ import { salvarClientesFirebase } from "@/lib/firebaseSync";
 import { gerarTokenOS } from "@/lib/osPublica";
 import { useState, useRef, useEffect } from "react";
 
+import {
+  existemClientesPendentes,
+  marcarClienteLocalPendente,
+} from '@/lib/firebaseSync';
+
 type OSVinculada = {
   numero: string;
   tipoAparel: string;
@@ -127,6 +132,7 @@ export function ClientesPage() {
   const [erros, setErros] = useState<Record<string, string>>({});
   const fotoRef = useRef<HTMLInputElement>(null);
   const primeiraCarga = useRef(true);
+  const ignorarProximoSalvamento = useRef(false);
 
   useEffect(() => {
     try {
@@ -135,6 +141,12 @@ export function ClientesPage() {
 
     if (primeiraCarga.current) {
       primeiraCarga.current = false;
+      if (existemClientesPendentes()) void salvarClientesFirebase(clientes);
+      return;
+    }
+
+    if (ignorarProximoSalvamento.current) {
+      ignorarProximoSalvamento.current = false;
       return;
     }
 
@@ -142,7 +154,14 @@ export function ClientesPage() {
   }, [clientes]);
 
   useEffect(() => {
-    const atualizarClientes = () => setClientes(carregarClientes());
+    const atualizarClientes = () => {
+      const clientesAtualizados = carregarClientes();
+      setClientes((atuais) => {
+        if (JSON.stringify(atuais) === JSON.stringify(clientesAtualizados)) return atuais;
+        ignorarProximoSalvamento.current = true;
+        return clientesAtualizados;
+      });
+    };
     window.addEventListener("sos-firebase-update", atualizarClientes);
     return () => window.removeEventListener("sos-firebase-update", atualizarClientes);
   }, []);
@@ -209,6 +228,7 @@ export function ClientesPage() {
         valor: form.valor.trim() || "A orçar",
       },
     };
+    marcarClienteLocalPendente(novo);
     setClientes((prev) => {
       const atualizado = [novo, ...prev];
       return atualizado;
