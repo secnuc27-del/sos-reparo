@@ -30,7 +30,7 @@ export function HistoricoPage() {
           dataEntrega: c.os.dataRetirada || "-",
           horaEntrega: c.os.horaRetirada || "",
           valor: c.os.valor || "-",
-          fotoLocal: c.os.fotoEquipamento,
+          fotoLocal: c.os.fotoEquipamento || c.os.fotoAntes || c.os.fotoDepois,
         }));
 
       // 2. Itens estáticos que foram editados para Entregue via sos_eq_static_edits

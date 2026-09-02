@@ -25,14 +25,10 @@ export function salvarClientesLocal(clientes: unknown[]) {
     );
     return true;
   } catch {
-    try {
-      localStorage.setItem(
-        CLIENTES_STORAGE_KEY,
-        JSON.stringify(clientes.map((cliente) => compactarCliente(cliente, true))),
-      );
-      return true;
-    } catch {
-      return false;
-    }
+    // Nunca substitua os dados por uma cópia sem fotos: isso fazia imagens
+    // antigas desaparecerem quando o limite do localStorage era atingido.
+    // Mantemos o cache anterior intacto e deixamos a tela continuar usando
+    // os dados que já estão em memória.
+    return false;
   }
 }

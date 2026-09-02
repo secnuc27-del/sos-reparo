@@ -49,7 +49,7 @@ export function ConsultaPage() {
             previsao: c.os.dataRetirada || "A definir",
             valor: c.os.valor || "A definir",
             tecnico: c.os.tecnico || "A definir",
-            fotoLocal: c.os.fotoEquipamento,
+            fotoLocal: c.os.fotoEquipamento || c.os.fotoAntes || c.os.fotoDepois,
             etapas: [
               { label: "Equipamento recebido", data: c.os.dataEntrada, feito: true, atual: c.os.statusOS === "Aguardando" },
               { label: "Análise técnica", data: "-", feito: isAndamento || isConcluido, atual: c.os.statusOS === "Em análise" },

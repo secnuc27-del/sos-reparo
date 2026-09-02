@@ -175,7 +175,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
             previsao: c.os.dataRetirada || "-",
             valor: c.os.valor,
             status: c.os.statusOS,
-            fotoLocal: c.os.fotoEquipamento,
+            fotoLocal: c.os.fotoEquipamento || c.os.fotoAntes || c.os.fotoDepois,
             fotoAntes: c.os.fotoAntes || c.os.fotoEquipamento,
             fotoDepois: c.os.fotoDepois || "",
             publicToken: c.os.publicToken,

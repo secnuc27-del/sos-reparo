@@ -450,8 +450,8 @@ export function ClientesPage() {
                     {c.os ? (
                       <div className="flex items-center gap-3">
                         <div className="relative shrink-0">
-                           {c.os.fotoEquipamento ? (
-                             <img src={c.os.fotoEquipamento} loading="lazy" decoding="async" className="h-12 w-12 rounded-xl object-cover shadow-sm ring-1 ring-border group-hover:ring-primary/50 transition-all" />
+                           {(c.os.fotoEquipamento || c.os.fotoAntes || c.os.fotoDepois) ? (
+                             <img src={c.os.fotoEquipamento || c.os.fotoAntes || c.os.fotoDepois} loading="lazy" decoding="async" className="h-12 w-12 rounded-xl object-cover shadow-sm ring-1 ring-border group-hover:ring-primary/50 transition-all" />
                            ) : (
                              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted ring-1 ring-border group-hover:ring-primary/50 transition-all">
                                <Wrench className="h-5 w-5 text-muted-foreground" />
