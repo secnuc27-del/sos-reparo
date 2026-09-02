@@ -421,7 +421,7 @@ export function EquipamentosPage() {
                 <button type="button" disabled={fotoProcessando} onClick={() => fotoDepoisRef.current?.click()} className="rounded-lg border border-dashed border-input bg-muted/30 p-3 text-left hover:border-primary disabled:cursor-wait disabled:opacity-70">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Foto depois</p>
                   {editando.fotoDepois ? <img src={editando.fotoDepois} alt="Depois do reparo" className="h-24 w-full rounded-md object-cover" /> : <span className="flex h-24 flex-col items-center justify-center gap-1 text-xs text-muted-foreground"><Camera className="h-5 w-5" />{fotoProcessando ? "Processando foto..." : "Adicionar resultado"}</span>}
-                  <input ref={fotoDepoisRef} type="file" accept="image/*" className="hidden" onChange={escolherFotoDepois} />
+                  <input ref={fotoDepoisRef} type="file" accept="image/*,.jpn,.jpg,.jpeg,.png,.webp,.gif,.avif,.heic,.heif,.webm" className="hidden" onChange={escolherFotoDepois} />
                 </button>
               </div>
               {fotoErro && <p className="text-xs font-medium text-destructive">{fotoErro}</p>}

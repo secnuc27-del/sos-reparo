@@ -19,7 +19,7 @@ import {
 } from '@/lib/firebaseSync';
 
 import { CATALOGO_POR_TIPO, MARCAS_COMPLETAS_POR_TIPO } from '@/lib/catalogoEquipamentos';
-import { comprimirFoto } from "@/lib/fotos";
+import { comprimirFoto, MAX_TAMANHO_FOTO_BYTES } from "@/lib/fotos";
 import { MarcaLogo } from "@/components/MarcaLogo";
 
 type OSVinculada = {
@@ -275,6 +275,11 @@ export function ClientesPage() {
   const handleFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_TAMANHO_FOTO_BYTES) {
+      setErros({ foto: "A foto precisa ter no mÃ¡ximo 1 GB." });
+      e.target.value = "";
+      return;
+    }
     setFotoProcessando(true);
     setErros({});
     try {
@@ -759,7 +764,7 @@ export function ClientesPage() {
                         <Upload className="h-3.5 w-3.5" />
                         {fotoProcessando ? "Processando foto..." : form.fotoEquipamento ? "Trocar foto" : "Escolher da galeria / explorador"}
                       </button>
-                      <input ref={fotoRef} type="file" accept="image/*" className="hidden" onChange={handleFoto} />
+                      <input ref={fotoRef} type="file" accept="image/*,.jpn,.jpg,.jpeg,.png,.webp,.gif,.avif,.heic,.heif,.webm" className="hidden" onChange={handleFoto} />
                       {erros.foto && <p className="text-center text-xs text-destructive">{erros.foto}</p>}
                     </div>
 
