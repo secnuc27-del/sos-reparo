@@ -3,6 +3,7 @@ import { Layout } from "@/components/Layout";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Search, PackageSearch } from "lucide-react";
 import { ordensDeServico, clientes } from "@/lib/dados";
+import { MarcaLogo } from "@/components/MarcaLogo";
 
 export function ConsultaPage() {
   const [busca, setBusca] = useState("");
@@ -187,7 +188,10 @@ export function ConsultaPage() {
                   </div>
                   <div className="px-4 py-3">
                     <p className="text-xs text-muted-foreground">Equipamento em Manutenção</p>
-                    <p className="text-lg font-bold text-foreground">{resultado.equipamento}</p>
+                    <div className="flex items-center gap-2">
+                      <MarcaLogo marca={resultado.marca || resultado.equipamento.split(" ")[0]} tamanho="sm" />
+                      <p className="text-lg font-bold text-foreground">{resultado.equipamento}</p>
+                    </div>
                   </div>
                 </div>
 

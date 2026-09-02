@@ -2,7 +2,7 @@ import { Layout } from "@/components/Layout";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
   Plus, Search, Phone, Mail, Users, X, Camera, Upload,
-  Wrench, CalendarDays, UserCheck, DollarSign, ClipboardList,
+  Wrench, CalendarDays, UserCheck, DollarSign, ClipboardList, ChevronDown, Check,
 } from "lucide-react";
 import { clientes as clientesIniciais } from "@/lib/dados";
 import { salvarClientesFirebase } from "@/lib/firebaseSync";
@@ -19,6 +19,7 @@ import {
 
 import { CATALOGO_POR_TIPO, MARCAS_COMPLETAS_POR_TIPO } from '@/lib/catalogoEquipamentos';
 import { comprimirFoto } from "@/lib/fotos";
+import { MarcaLogo } from "@/components/MarcaLogo";
 
 type OSVinculada = {
   numero: string;
@@ -192,6 +193,8 @@ export function ClientesPage() {
   const primeiraCarga = useRef(true);
   const ignorarProximoSalvamento = useRef(false);
   const [fotoProcessando, setFotoProcessando] = useState(false);
+  const [marcaAberta, setMarcaAberta] = useState(false);
+  const marcaMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -241,6 +244,17 @@ export function ClientesPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!marcaAberta) return;
+    const fecharAoClicarFora = (event: MouseEvent) => {
+      if (!marcaMenuRef.current?.contains(event.target as Node)) {
+        setMarcaAberta(false);
+      }
+    };
+    document.addEventListener("mousedown", fecharAoClicarFora);
+    return () => document.removeEventListener("mousedown", fecharAoClicarFora);
+  }, [marcaAberta]);
+
   const set = (key: string, val: string) =>
     setForm((f) => ({
       ...f,
@@ -268,6 +282,16 @@ export function ClientesPage() {
       setFotoProcessando(false);
       e.target.value = "";
     }
+  };
+
+  const selecionarMarca = (marca: string) => {
+    set("marcaSelect", marca);
+    set("marcaDigitada", "");
+    set("linhaSelect", "");
+    set("linhaDigitada", "");
+    set("modeloSelect", "");
+    set("modeloDigitado", "");
+    setMarcaAberta(false);
   };
 
   const avancar = (e: React.MouseEvent) => {
@@ -333,6 +357,7 @@ export function ClientesPage() {
 
   const fechar = () => {
     setAbrirModal(false);
+    setMarcaAberta(false);
     setStep(1);
     setForm({ ...formVazio(), telefone: '+55 ' });
     setErros({});
@@ -490,7 +515,11 @@ export function ClientesPage() {
                              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
                            </div>
                         </div>
-                        <div className="flex flex-col justify-center">
+                        <div className="flex min-w-0 flex-col justify-center">
+                          <div className="mb-1 flex items-center gap-2">
+                            <MarcaLogo marca={c.os.marca} tamanho="sm" />
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{c.os.marca}</span>
+                          </div>
                           <p className="font-bold text-sm text-foreground leading-tight">{c.os.marca} {c.os.modelo}</p>
                           <p className="text-[10px] text-muted-foreground uppercase tracking-wide font-medium mt-0.5">{c.os.tipoAparel}</p>
                           {c.os.defeito && <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">{c.os.defeito}</p>}
@@ -753,20 +782,59 @@ export function ClientesPage() {
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Marca</label>
-                        <select
-                          value={form.marcaSelect}
-                          onChange={(e) => {
-                            set("marcaSelect", e.target.value);
-                            set("linhaSelect", "");
-                            set("linhaDigitada", "");
-                            set("modeloSelect", "");
-                            set("modeloDigitado", "");
-                          }}
-                          className={inputCls()}
-                        >
-                          <option value="" disabled>Selecione...</option>
-                          {marcasDoFormulario.map((marca) => <option key={marca}>{marca}</option>)}
-                        </select>
+                        <div ref={marcaMenuRef} className="relative">
+                          <button
+                            type="button"
+                            aria-haspopup="listbox"
+                            aria-expanded={marcaAberta}
+                            onClick={() => setMarcaAberta((aberta) => !aberta)}
+                            className={inputCls() + " flex items-center justify-between gap-2 text-left"}
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              {form.marcaSelect ? (
+                                <MarcaLogo marca={form.marcaSelect} tamanho="sm" />
+                              ) : (
+                                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-bold text-muted-foreground">?</span>
+                              )}
+                              <span className="truncate">{form.marcaSelect || "Selecione..."}</span>
+                            </span>
+                            <ChevronDown className={"h-4 w-4 shrink-0 text-muted-foreground transition-transform " + (marcaAberta ? "rotate-180" : "")} />
+                          </button>
+
+                          {marcaAberta && (
+                            <div
+                              role="listbox"
+                              className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-50 max-h-72 overflow-y-auto rounded-xl border border-border bg-card p-1 shadow-xl"
+                            >
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={!form.marcaSelect}
+                                onClick={() => selecionarMarca("")}
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted"
+                              >
+                                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-bold">?</span>
+                                <span>Selecione...</span>
+                              </button>
+                              {marcasDoFormulario.map((marca) => (
+                                <button
+                                  key={marca}
+                                  type="button"
+                                  role="option"
+                                  aria-selected={form.marcaSelect === marca}
+                                  onClick={() => selecionarMarca(marca)}
+                                  className={"flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-primary/10 " + (form.marcaSelect === marca ? "bg-primary/10 font-semibold text-primary" : "text-foreground")}
+                                >
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <MarcaLogo marca={marca} tamanho="sm" />
+                                    <span className="truncate">{marca}</span>
+                                  </span>
+                                  {form.marcaSelect === marca && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         {form.marcaSelect === "Outra" && (
                           <input
                             type="text"

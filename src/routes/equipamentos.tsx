@@ -5,6 +5,7 @@ import { salvarClientesFirebase, salvarEdicoesFirebase } from "@/lib/firebaseSyn
 import { SignatureCanvas } from "@/components/SignatureCanvas";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica } from "@/lib/osPublica";
 import { comprimirFoto } from "@/lib/fotos";
+import { MarcaLogo } from "@/components/MarcaLogo";
 import { useState, useEffect, useRef } from "react";
 
 const tipoIcon: Record<string, typeof Smartphone> = {
@@ -279,11 +280,14 @@ export function EquipamentosPage() {
         </div>
 
         <div className="flex items-start justify-between">
-          <div>
+          <div className="flex min-w-0 items-start gap-2">
+            <MarcaLogo marca={eq.marca} tamanho="sm" />
+            <div className="min-w-0">
             <p className="font-semibold text-foreground line-clamp-1" title={`${eq.marca} ${eq.modelo}`}>
               {eq.marca} {eq.modelo}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">S/N: {eq.serial}</p>
+            </div>
           </div>
           <div className="flex flex-col items-end gap-1.5">
             <span className="shrink-0 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">

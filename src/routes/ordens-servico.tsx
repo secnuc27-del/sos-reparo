@@ -22,6 +22,7 @@ import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { salvarClientesFirebase } from "@/lib/firebaseSync";
 import { QRCodeSVG } from "qrcode.react";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica, urlOSPublica } from "@/lib/osPublica";
+import { MarcaLogo } from "@/components/MarcaLogo";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -361,7 +362,10 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
                 <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md tracking-wide">{os.numero}</span>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{os.tipo}</span>
               </div>
-              <p className="font-bold text-foreground text-sm group-hover:text-primary transition-colors line-clamp-1">{os.equipamento}</p>
+              <div className="flex min-w-0 items-center gap-2">
+                <MarcaLogo marca={os.marca || os.equipamento.split(" ")[0]} tamanho="sm" />
+                <p className="font-bold text-foreground text-sm group-hover:text-primary transition-colors line-clamp-1">{os.equipamento}</p>
+              </div>
               <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
                 <User className="h-3 w-3" />
                 <span className="font-medium truncate max-w-[180px]">{os.cliente}</span>

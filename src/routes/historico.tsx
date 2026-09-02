@@ -2,6 +2,7 @@ import { Layout } from "@/components/Layout";
 import { History, Search, CheckCircle2, Calendar, User, Wrench, DollarSign, PackageCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
+import { MarcaLogo } from "@/components/MarcaLogo";
 
 export function HistoricoPage() {
   const [busca, setBusca] = useState("");
@@ -168,7 +169,10 @@ export function HistoricoPage() {
                         <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md tracking-wide">{h.numero}</span>
                         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{h.tipo}</span>
                       </div>
-                      <p className="font-bold text-foreground text-sm group-hover:text-primary transition-colors line-clamp-1">{h.equipamento}</p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <MarcaLogo marca={h.marca || h.equipamento.split(" ")[0]} tamanho="sm" />
+                        <p className="font-bold text-foreground text-sm group-hover:text-primary transition-colors line-clamp-1">{h.equipamento}</p>
+                      </div>
                       <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground">
                         <User className="h-3 w-3" />
                         <span className="font-medium truncate max-w-[180px]">{h.cliente}</span>
