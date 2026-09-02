@@ -1,4 +1,4 @@
-import { get, onValue, ref, set, type Unsubscribe } from "firebase/database";
+import { get, onValue, ref, set, update, type Unsubscribe } from "firebase/database";
 import { database } from "./firebase";
 import { clientes as clientesIniciais } from "./dados";
 import { mesclarAprovacoesPublicas, sincronizarOSPublicas, type PublicOSRecord } from "./osPublica";
@@ -177,19 +177,49 @@ export function iniciarSincronizacaoFirebase() {
   return inicializacao;
 }
 
-export async function salvarClienteFirebase(cliente: unknown) {
-  if (!cliente || typeof cliente !== 'object') return;
-  const id = (cliente as Record<string, unknown>).id;
-  if (id === undefined || id === null) return;
+async function salvarClientesPorRegistro(clientes: unknown[]) {
+  const registros = clientes.filter((cliente): cliente is Record<string, unknown> => {
+    if (!cliente || typeof cliente !== 'object') return false;
+    const id = (cliente as Record<string, unknown>).id;
+    return id !== undefined && id !== null;
+  });
 
-  await iniciarSincronizacaoFirebase();
+  if (registros.length === 0) return;
+
+  const clientesRef = ref(database, CLIENTES_PATH);
+  const snapshot = await get(clientesRef);
+  const chavesRemotas = new Map<string, string>();
+
+  if (snapshot.exists()) {
+    Object.entries(snapshot.val() as Record<string, unknown>).forEach(([chave, cliente]) => {
+      chavesRemotas.set(chaveCliente(cliente), chave);
+    });
+  }
+
+  const atualizacoes: Record<string, unknown> = {};
+  registros.forEach((cliente) => {
+    const chave = chavesRemotas.get(chaveCliente(cliente)) || String(cliente.id);
+    atualizacoes[chave] = cliente;
+  });
+
+  await update(clientesRef, atualizacoes);
+}
+
+export async function salvarClienteFirebase(cliente: unknown) {
+  if (!cliente || typeof cliente !== 'object') return false;
+  const id = (cliente as Record<string, unknown>).id;
+  if (id === undefined || id === null) return false;
+
   try {
-    // Cadastro novo: grava somente este registro para não sobrescrever outros
-    // clientes cadastrados em outro celular.
-    await set(ref(database, CLIENTES_PATH + '/' + String(id)), cliente as object);
+    await iniciarSincronizacaoFirebase();
+    // Atualiza somente este cliente. A lista inteira nunca mais é sobrescrita
+    // durante um cadastro ou uma edição feita em outro aparelho.
+    await salvarClientesPorRegistro([cliente]);
     await sincronizarOSPublicas([cliente]);
+    return true;
   } catch (error) {
     console.warn('Não foi possível salvar o novo cliente no Firebase:', error);
+    return false;
   }
 }
 
@@ -201,10 +231,11 @@ export async function salvarClientesPendentesFirebase() {
 }
 
 export async function salvarClientesFirebase(clientes: unknown) {
-  await iniciarSincronizacaoFirebase();
   try {
-    await set(ref(database, CLIENTES_PATH), clientes as object);
-    if (Array.isArray(clientes)) await sincronizarOSPublicas(clientes);
+    await iniciarSincronizacaoFirebase();
+    const lista = Array.isArray(clientes) ? clientes : [];
+    await salvarClientesPorRegistro(lista);
+    await sincronizarOSPublicas(lista);
   } catch (error) {
     console.warn("Não foi possível salvar clientes no Firebase:", error);
   }

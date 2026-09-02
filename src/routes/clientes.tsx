@@ -14,6 +14,7 @@ import {
   marcarClienteLocalPendente,
   salvarClienteFirebase,
   salvarClientesPendentesFirebase,
+  iniciarSincronizacaoFirebase,
 } from '@/lib/firebaseSync';
 
 import { CATALOGO_POR_TIPO, MARCAS_COMPLETAS_POR_TIPO } from '@/lib/catalogoEquipamentos';
@@ -220,6 +221,22 @@ export function ClientesPage() {
     };
     window.addEventListener("sos-firebase-update", atualizarClientes);
     return () => window.removeEventListener("sos-firebase-update", atualizarClientes);
+  }, []);
+
+  useEffect(() => {
+    let ativo = true;
+    void iniciarSincronizacaoFirebase().then(() => {
+      if (!ativo) return;
+      const clientesAtualizados = carregarClientes();
+      setClientes((atuais) => {
+        if (JSON.stringify(atuais) === JSON.stringify(clientesAtualizados)) return atuais;
+        ignorarProximoSalvamento.current = true;
+        return clientesAtualizados;
+      });
+    });
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   const set = (key: string, val: string) =>
