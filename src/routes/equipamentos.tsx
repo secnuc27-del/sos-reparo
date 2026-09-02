@@ -1,7 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { Search, Smartphone, Laptop, Monitor, Printer, Tablet, Gamepad2, Edit2, X, Camera, Upload, PenLine } from "lucide-react";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
-import { salvarClientesFirebase, salvarEdicoesFirebase } from "@/lib/firebaseSync";
+import { salvarClientesFirebase, salvarClientesLocal, salvarEdicoesFirebase } from "@/lib/firebaseSync";
 import { SignatureCanvas } from "@/components/SignatureCanvas";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica } from "@/lib/osPublica";
 import { comprimirFoto } from "@/lib/fotos";
@@ -55,10 +55,15 @@ export function EquipamentosPage() {
     }
   };
 
-  const carregar = () => {
+  const carregar = (event?: Event) => {
     try {
-      const salvo = localStorage.getItem("sos_clientes");
-      if (salvo) setLocais(JSON.parse(salvo));
+      const detalhe = event ? (event as CustomEvent<unknown>).detail : undefined;
+      if (Array.isArray(detalhe)) {
+        setLocais(detalhe);
+      } else {
+        const salvo = localStorage.getItem("sos_clientes");
+        if (salvo) setLocais(JSON.parse(salvo));
+      }
       const staticSalvo = localStorage.getItem("sos_eq_static_edits");
       if (staticSalvo) setStaticEdits(JSON.parse(staticSalvo));
     } catch {}
@@ -116,7 +121,7 @@ export function EquipamentosPage() {
             }
             return c;
           });
-          localStorage.setItem("sos_clientes", JSON.stringify(novos));
+          salvarClientesLocal(novos);
           void salvarClientesFirebase(novos);
         }
       } catch {}

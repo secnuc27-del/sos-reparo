@@ -14,6 +14,7 @@ import {
   marcarClienteLocalPendente,
   salvarClienteFirebase,
   salvarClientesPendentesFirebase,
+  salvarClientesLocal,
   iniciarSincronizacaoFirebase,
 } from '@/lib/firebaseSync';
 
@@ -197,9 +198,7 @@ export function ClientesPage() {
   const marcaMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(clientes));
-    } catch {}
+    salvarClientesLocal(clientes);
 
     if (primeiraCarga.current) {
       primeiraCarga.current = false;
@@ -216,8 +215,11 @@ export function ClientesPage() {
   }, [clientes]);
 
   useEffect(() => {
-    const atualizarClientes = () => {
-      const clientesAtualizados = carregarClientes();
+    const atualizarClientes = (event: Event) => {
+      const detalhe = (event as CustomEvent<unknown>).detail;
+      const clientesAtualizados = Array.isArray(detalhe)
+        ? detalhe as ClienteCompleto[]
+        : carregarClientes();
       setClientes((atuais) => {
         if (JSON.stringify(atuais) === JSON.stringify(clientesAtualizados)) return atuais;
         ignorarProximoSalvamento.current = true;
@@ -230,9 +232,11 @@ export function ClientesPage() {
 
   useEffect(() => {
     let ativo = true;
-    void iniciarSincronizacaoFirebase().then(() => {
+    void iniciarSincronizacaoFirebase().then((clientesSincronizados) => {
       if (!ativo) return;
-      const clientesAtualizados = carregarClientes();
+      const clientesAtualizados = Array.isArray(clientesSincronizados)
+        ? clientesSincronizados as ClienteCompleto[]
+        : carregarClientes();
       setClientes((atuais) => {
         if (JSON.stringify(atuais) === JSON.stringify(clientesAtualizados)) return atuais;
         ignorarProximoSalvamento.current = true;
@@ -346,9 +350,7 @@ export function ClientesPage() {
     };
     marcarClienteLocalPendente(novo);
     const atualizado = [novo, ...clientes];
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(atualizado));
-    } catch {}
+    salvarClientesLocal(atualizado);
     ignorarProximoSalvamento.current = true;
     setClientes(atualizado);
     void salvarClienteFirebase(novo);

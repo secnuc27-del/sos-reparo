@@ -1,5 +1,5 @@
-const MAX_DIMENSION = 1280;
-const MAX_DATA_URL_LENGTH = 450_000;
+const MAX_DIMENSION = 1024;
+const MAX_DATA_URL_LENGTH = 180_000;
 
 /**
  * Reduz fotos de celulares/câmeras para que possam ser salvas com segurança

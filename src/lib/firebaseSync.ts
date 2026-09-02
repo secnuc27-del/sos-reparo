@@ -9,9 +9,11 @@ const CLIENTES_PATH = "clientes";
 const EDICOES_PATH = "equipamentosEdicoes";
 const PUBLIC_PATH = "publicOS";
 
-let inicializacao: Promise<void> | null = null;
+let inicializacao: Promise<unknown[]> | null = null;
 let listeners: Unsubscribe[] = [];
 const CLIENTES_PENDENTES_STORAGE_KEY = 'sos_clientes_pendentes';
+
+export type FirebaseStatus = "conectando" | "conectado" | "offline";
 
 function lerLocal<T>(key: string): T | null {
   try {
@@ -22,16 +24,69 @@ function lerLocal<T>(key: string): T | null {
   }
 }
 
+function compactarClienteParaCache(cliente: unknown, removerFotos = false) {
+  if (!cliente || typeof cliente !== 'object') return cliente;
+
+  const registro = cliente as Record<string, unknown>;
+  const os = registro.os;
+  if (!os || typeof os !== 'object') return { ...registro };
+
+  const dadosOS = os as Record<string, unknown>;
+  const fotoEquipamento = removerFotos ? '' : dadosOS.fotoEquipamento;
+  const fotoAntes = removerFotos || dadosOS.fotoAntes === dadosOS.fotoEquipamento
+    ? ''
+    : dadosOS.fotoAntes;
+  const fotoDepois = removerFotos ? '' : dadosOS.fotoDepois;
+
+  return {
+    ...registro,
+    os: {
+      ...dadosOS,
+      fotoEquipamento,
+      fotoAntes,
+      fotoDepois,
+    },
+  };
+}
+
+function compactarClientesParaCache(clientes: unknown[], removerFotos = false) {
+  return clientes.map((cliente) => compactarClienteParaCache(cliente, removerFotos));
+}
+
 function gravarLocal(key: string, value: unknown) {
+  const valorInicial = key === CLIENTES_STORAGE_KEY && Array.isArray(value)
+    ? compactarClientesParaCache(value)
+    : value;
+
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(key, JSON.stringify(valorInicial));
+    return true;
   } catch {
-    // O localStorage permanece apenas como fallback do Firebase.
+    // Fotos podem ocupar toda a cota do navegador. Mantemos os dados da OS
+    // e removemos apenas as imagens da cópia local; o Firebase continua com
+    // o registro completo e compartilhado entre os dispositivos.
+    if (key === CLIENTES_STORAGE_KEY && Array.isArray(value)) {
+      try {
+        localStorage.setItem(key, JSON.stringify(compactarClientesParaCache(value, true)));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
   }
 }
 
-function avisarAtualizacao() {
-  window.dispatchEvent(new Event("sos-firebase-update"));
+function avisarAtualizacao(clientes?: unknown[]) {
+  window.dispatchEvent(new CustomEvent("sos-firebase-update", {
+    detail: clientes,
+  }));
+}
+
+function avisarStatus(status: FirebaseStatus) {
+  window.dispatchEvent(new CustomEvent("sos-firebase-status", {
+    detail: status,
+  }));
 }
 
 function normalizarArray(value: unknown): unknown[] {
@@ -109,20 +164,22 @@ export function existemClientesPendentes() {
   return lerClientesPendentes().length > 0;
 }
 
-async function prepararDadosIniciais() {
+async function prepararDadosIniciais(): Promise<unknown[]> {
   const clientesRef = ref(database, CLIENTES_PATH);
   const clientesSnapshot = await get(clientesRef);
   const clientesPendentes = lerClientesPendentes();
+  let clientesParaUsar: unknown[];
 
   if (clientesSnapshot.exists()) {
     const clientesRemotos = normalizarArray(clientesSnapshot.val());
     const pendentes = pendentesQueNaoVieram(clientesRemotos, clientesPendentes);
-    gravarLocal(CLIENTES_STORAGE_KEY, adicionarPendentes(clientesRemotos, pendentes));
+    clientesParaUsar = adicionarPendentes(clientesRemotos, pendentes);
+    gravarLocal(CLIENTES_STORAGE_KEY, clientesParaUsar);
     if (pendentes.length === 0 && clientesPendentes.length > 0) limparClientesPendentes();
     else if (pendentes.length > 0) gravarClientesPendentes(pendentes);
   } else {
     const clientesLocais = lerLocal<unknown[]>(CLIENTES_STORAGE_KEY) ?? clientesIniciais;
-    const clientesParaUsar = adicionarPendentes(clientesLocais, clientesPendentes);
+    clientesParaUsar = adicionarPendentes(clientesLocais, clientesPendentes);
     gravarLocal(CLIENTES_STORAGE_KEY, clientesParaUsar);
     await set(clientesRef, clientesParaUsar);
   }
@@ -135,6 +192,8 @@ async function prepararDadosIniciais() {
     const edicoesLocais = lerLocal<Record<string, unknown>>(EDICOES_STORAGE_KEY);
     if (edicoesLocais) await set(edicoesRef, edicoesLocais);
   }
+
+  return clientesParaUsar;
 }
 
 function iniciarListeners() {
@@ -149,21 +208,29 @@ function iniciarListeners() {
 
       // Uma resposta antiga do Firebase não pode apagar cliente recém-criado.
       if (pendentes.length > 0) {
-        gravarLocal(CLIENTES_STORAGE_KEY, adicionarPendentes(clientesRemotos, pendentes));
+        const clientesProtegidos = adicionarPendentes(clientesRemotos, pendentes);
+        gravarLocal(CLIENTES_STORAGE_KEY, clientesProtegidos);
         gravarClientesPendentes(pendentes);
-        avisarAtualizacao();
+        avisarAtualizacao(clientesProtegidos);
         return;
       }
 
       if (clientesPendentes.length > 0) limparClientesPendentes();
       gravarLocal(CLIENTES_STORAGE_KEY, clientesRemotos);
-      avisarAtualizacao();
-    }, (error) => console.warn("Firebase clientes indisponível:", error.message)),
+      avisarAtualizacao(clientesRemotos);
+      avisarStatus("conectado");
+    }, (error) => {
+      avisarStatus("offline");
+      console.warn("Firebase clientes indisponível:", error.message);
+    }),
     onValue(ref(database, EDICOES_PATH), (snapshot) => {
       if (!snapshot.exists()) return;
       gravarLocal(EDICOES_STORAGE_KEY, snapshot.val());
       avisarAtualizacao();
-    }, (error) => console.warn("Firebase edições indisponível:", error.message)),
+    }, (error) => {
+      avisarStatus("offline");
+      console.warn("Firebase edições indisponível:", error.message);
+    }),
     onValue(ref(database, PUBLIC_PATH), (snapshot) => {
       if (!snapshot.exists()) return;
       const mapaPublico = snapshot.val() as Record<string, PublicOSRecord>;
@@ -177,21 +244,35 @@ function iniciarListeners() {
         if (atualizados !== clientesLocais) gravarLocal(CLIENTES_STORAGE_KEY, atualizados);
       }
       avisarAtualizacao();
-    }, (error) => console.warn("Firebase público indisponível:", error.message)),
+    }, (error) => {
+      console.warn("Firebase público indisponível:", error.message);
+    }),
   ];
 }
 
 export function iniciarSincronizacaoFirebase() {
   if (!inicializacao) {
+    avisarStatus("conectando");
     inicializacao = prepararDadosIniciais()
-      .catch((error: unknown) => {
-        console.warn("Firebase indisponível; usando dados locais:", error);
+      .then((clientesSincronizados) => {
+        avisarStatus("conectado");
+        return clientesSincronizados;
       })
-      .then(() => {
+      .catch((error: unknown) => {
+        avisarStatus("offline");
+        console.warn("Firebase indisponível; usando dados locais:", error);
+        return lerLocal<unknown[]>(CLIENTES_STORAGE_KEY) ?? clientesIniciais;
+      })
+      .then((clientesSincronizados) => {
         iniciarListeners();
+        return clientesSincronizados;
       });
   }
   return inicializacao;
+}
+
+export function salvarClientesLocal(clientes: unknown[]) {
+  return gravarLocal(CLIENTES_STORAGE_KEY, clientes);
 }
 
 async function salvarClientesPorRegistro(clientes: unknown[]) {
@@ -233,8 +314,10 @@ export async function salvarClienteFirebase(cliente: unknown) {
     // durante um cadastro ou uma edição feita em outro aparelho.
     await salvarClientesPorRegistro([cliente]);
     await sincronizarOSPublicas([cliente]);
+    avisarStatus("conectado");
     return true;
   } catch (error) {
+    avisarStatus("offline");
     console.warn('Não foi possível salvar o novo cliente no Firebase:', error);
     return false;
   }
@@ -255,6 +338,7 @@ export async function salvarClientesFirebase(clientes: unknown) {
     await salvarClientesPorRegistro(lista);
     await sincronizarOSPublicas(lista);
   } catch (error) {
+    avisarStatus("offline");
     console.warn("Não foi possível salvar clientes no Firebase:", error);
   }
 }
@@ -264,6 +348,7 @@ export async function salvarEdicoesFirebase(edicoes: unknown) {
   try {
     await set(ref(database, EDICOES_PATH), edicoes as object);
   } catch (error) {
+    avisarStatus("offline");
     console.warn("Não foi possível salvar edições no Firebase:", error);
   }
 }
