@@ -261,6 +261,8 @@ export function EquipamentosPage() {
             <img
               src={eq.fotoLocal || `${import.meta.env.BASE_URL}fotos/${eq.marca} ${eq.modelo}.webp`}
               alt={`${eq.marca} ${eq.modelo}`}
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 h-full w-full object-contain transition-transform duration-500 group-hover:scale-105 drop-shadow-md"
               onError={(e) => {
                 e.currentTarget.style.display = "none";
@@ -279,7 +281,7 @@ export function EquipamentosPage() {
           {[{ label: "Antes", src: eq.fotoAntes || eq.fotoLocal }, { label: "Depois", src: eq.fotoDepois }].map((foto) => (
             <div key={foto.label} className="overflow-hidden rounded-lg border border-border bg-muted/30">
               <p className="border-b border-border px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{foto.label}</p>
-              {foto.src ? <img src={foto.src} alt={`Foto ${foto.label}`} onClick={() => window.open(foto.src, "_blank")} title="Clique para ver a foto inteira" className="h-32 w-full cursor-zoom-in bg-white object-contain p-1" /> : <div className="flex h-32 items-center justify-center text-[10px] text-muted-foreground"><Camera className="mr-1 h-3.5 w-3.5" /> Sem foto</div>}
+              {foto.src ? <img src={foto.src} loading="lazy" decoding="async" alt={`Foto ${foto.label}`} onClick={() => window.open(foto.src, "_blank")} title="Clique para ver a foto inteira" className="h-32 w-full cursor-zoom-in bg-white object-contain p-1" /> : <div className="flex h-32 items-center justify-center text-[10px] text-muted-foreground"><Camera className="mr-1 h-3.5 w-3.5" /> Sem foto</div>}
             </div>
           ))}
         </div>

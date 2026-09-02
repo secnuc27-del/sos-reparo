@@ -12,8 +12,10 @@ const PUBLIC_PATH = "publicOS";
 let inicializacao: Promise<unknown[]> | null = null;
 let listeners: Unsubscribe[] = [];
 const CLIENTES_PENDENTES_STORAGE_KEY = 'sos_clientes_pendentes';
+const FIREBASE_TIMEOUT_MS = 10_000;
 
 export type FirebaseStatus = "conectando" | "conectado" | "offline";
+let statusAtual: FirebaseStatus = "conectando";
 
 function lerLocal<T>(key: string): T | null {
   try {
@@ -84,9 +86,30 @@ function avisarAtualizacao(clientes?: unknown[]) {
 }
 
 function avisarStatus(status: FirebaseStatus) {
+  statusAtual = status;
   window.dispatchEvent(new CustomEvent("sos-firebase-status", {
     detail: status,
   }));
+}
+
+export function obterStatusFirebase() {
+  return statusAtual;
+}
+
+function comPrazo<T>(promessa: Promise<T>, mensagem: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const temporizador = window.setTimeout(() => reject(new Error(mensagem)), FIREBASE_TIMEOUT_MS);
+    promessa.then(
+      (valor) => {
+        window.clearTimeout(temporizador);
+        resolve(valor);
+      },
+      (erro) => {
+        window.clearTimeout(temporizador);
+        reject(erro);
+      },
+    );
+  });
 }
 
 function normalizarArray(value: unknown): unknown[] {
@@ -166,7 +189,10 @@ export function existemClientesPendentes() {
 
 async function prepararDadosIniciais(): Promise<unknown[]> {
   const clientesRef = ref(database, CLIENTES_PATH);
-  const clientesSnapshot = await get(clientesRef);
+  const clientesSnapshot = await comPrazo(
+    get(clientesRef),
+    "Firebase demorou demais para responder aos clientes.",
+  );
   const clientesPendentes = lerClientesPendentes();
   let clientesParaUsar: unknown[];
 
@@ -185,7 +211,10 @@ async function prepararDadosIniciais(): Promise<unknown[]> {
   }
 
   const edicoesRef = ref(database, EDICOES_PATH);
-  const edicoesSnapshot = await get(edicoesRef);
+  const edicoesSnapshot = await comPrazo(
+    get(edicoesRef),
+    "Firebase demorou demais para responder às edições.",
+  );
   if (edicoesSnapshot.exists()) {
     gravarLocal(EDICOES_STORAGE_KEY, edicoesSnapshot.val());
   } else {
@@ -285,7 +314,10 @@ async function salvarClientesPorRegistro(clientes: unknown[]) {
   if (registros.length === 0) return;
 
   const clientesRef = ref(database, CLIENTES_PATH);
-  const snapshot = await get(clientesRef);
+  const snapshot = await comPrazo(
+    get(clientesRef),
+    "Firebase demorou demais para salvar o cliente.",
+  );
   const chavesRemotas = new Map<string, string>();
 
   if (snapshot.exists()) {

@@ -346,6 +346,8 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
                 <img
                   src={os.fotoLocal || fotoEquipamento[os.equipamento]}
                   alt={os.equipamento}
+                  loading="lazy"
+                  decoding="async"
                   className="h-14 w-14 rounded-xl object-cover shadow-sm ring-1 ring-border group-hover:ring-primary/50 transition-all"
                 />
               ) : (

@@ -144,6 +144,8 @@ export function HistoricoPage() {
                         <img
                           src={h.fotoLocal || `${import.meta.env.BASE_URL}fotos/${h.marca} ${h.modelo}.webp`}
                           alt={h.equipamento}
+                          loading="lazy"
+                          decoding="async"
                           className="h-14 w-14 rounded-xl object-cover shadow-sm ring-1 ring-border group-hover:ring-emerald-500/50 transition-all"
                           onError={(e) => {
                             e.currentTarget.style.display = "none";

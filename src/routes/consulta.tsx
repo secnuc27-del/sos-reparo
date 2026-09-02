@@ -173,6 +173,8 @@ export function ConsultaPage() {
                     <img
                       src={resultado.fotoLocal || `${import.meta.env.BASE_URL}fotos/${resultado.equipamento}.webp`}
                       alt={resultado.equipamento}
+                      loading="lazy"
+                      decoding="async"
                       className="h-full w-full object-contain drop-shadow-lg transition-transform duration-500 hover:scale-105"
                       onError={(e) => {
                         if (!resultado.fotoLocal) {

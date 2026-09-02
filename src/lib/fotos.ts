@@ -1,5 +1,5 @@
-const MAX_DIMENSION = 1024;
-const MAX_DATA_URL_LENGTH = 180_000;
+const MAX_DIMENSION = 640;
+const MAX_DATA_URL_LENGTH = 70_000;
 
 /**
  * Reduz fotos de celulares/câmeras para que possam ser salvas com segurança
@@ -29,12 +29,18 @@ export function comprimirFoto(arquivo: File): Promise<string> {
         contexto.fillRect(0, 0, largura, altura);
         contexto.drawImage(imagem, 0, 0, largura, altura);
 
-        let qualidade = 0.82;
-        let resultado = canvas.toDataURL("image/jpeg", qualidade);
-
-        while (resultado.length > MAX_DATA_URL_LENGTH && qualidade > 0.45) {
-          qualidade -= 0.08;
+        let qualidade = 0.7;
+        let resultado = canvas.toDataURL("image/webp", qualidade);
+        if (!resultado.startsWith("data:image/webp")) {
           resultado = canvas.toDataURL("image/jpeg", qualidade);
+        }
+
+        while (resultado.length > MAX_DATA_URL_LENGTH && qualidade > 0.42) {
+          qualidade -= 0.08;
+          resultado = canvas.toDataURL("image/webp", qualidade);
+          if (!resultado.startsWith("data:image/webp")) {
+            resultado = canvas.toDataURL("image/jpeg", qualidade);
+          }
         }
 
         liberarUrl();

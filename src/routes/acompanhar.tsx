@@ -141,7 +141,7 @@ export function AcompanharPage() {
               {[{ label: "Antes", src: os.fotoAntes }, { label: "Depois", src: os.fotoDepois }].map((foto) => (
                 <div key={foto.label} className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
                   <div className="border-b border-slate-800 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-400">{foto.label}</div>
-                  {foto.src ? <img src={foto.src} alt={`Foto ${foto.label.toLowerCase()} do aparelho`} className="h-52 w-full object-contain bg-slate-950 p-2" /> : <div className="flex h-52 items-center justify-center text-sm text-slate-500">Foto ainda não adicionada</div>}
+                  {foto.src ? <img src={foto.src} loading="lazy" decoding="async" alt={`Foto ${foto.label.toLowerCase()} do aparelho`} className="h-52 w-full object-contain bg-slate-950 p-2" /> : <div className="flex h-52 items-center justify-center text-sm text-slate-500">Foto ainda não adicionada</div>}
                 </div>
               ))}
             </div>

@@ -19,7 +19,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "./AuthProvider";
 import { useTheme } from "./ThemeProvider";
 import { logoUrl } from "@/lib/logo";
-import type { FirebaseStatus } from "@/lib/firebaseSync";
+import { obterStatusFirebase, type FirebaseStatus } from "@/lib/firebaseSync";
 
 const navItems = [
   { to: "/", label: "Visão Geral", icon: LayoutDashboard },
@@ -39,7 +39,7 @@ export function Layout({ children }: { children?: ReactNode }) {
   const { logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [menuAberto, setMenuAberto] = useState(false);
-  const [firebaseStatus, setFirebaseStatus] = useState<FirebaseStatus>("conectando");
+  const [firebaseStatus, setFirebaseStatus] = useState<FirebaseStatus>(obterStatusFirebase());
 
   useEffect(() => {
     const atualizarStatus = (event: Event) => {
