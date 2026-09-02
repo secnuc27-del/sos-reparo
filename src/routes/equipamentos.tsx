@@ -4,6 +4,7 @@ import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { salvarClientesFirebase, salvarEdicoesFirebase } from "@/lib/firebaseSync";
 import { SignatureCanvas } from "@/components/SignatureCanvas";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica } from "@/lib/osPublica";
+import { comprimirFoto } from "@/lib/fotos";
 import { useState, useEffect, useRef } from "react";
 
 const tipoIcon: Record<string, typeof Smartphone> = {
@@ -33,14 +34,24 @@ export function EquipamentosPage() {
   const [staticEdits, setStaticEdits] = useState<Record<string, any>>({});
   const [editando, setEditando] = useState<any>(null);
   const [assinaturaErro, setAssinaturaErro] = useState("");
+  const [fotoErro, setFotoErro] = useState("");
+  const [fotoProcessando, setFotoProcessando] = useState(false);
   const fotoDepoisRef = useRef<HTMLInputElement>(null);
 
-  const escolherFotoDepois = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const escolherFotoDepois = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const arquivo = event.target.files?.[0];
     if (!arquivo) return;
-    const leitor = new FileReader();
-    leitor.onload = () => setEditando((atual: any) => ({ ...atual, fotoDepois: leitor.result as string }));
-    leitor.readAsDataURL(arquivo);
+    setFotoProcessando(true);
+    setFotoErro("");
+    try {
+      const fotoLeve = await comprimirFoto(arquivo);
+      setEditando((atual: any) => ({ ...atual, fotoDepois: fotoLeve }));
+    } catch {
+      setFotoErro("Não foi possível processar esta foto. Tente outra imagem.");
+    } finally {
+      setFotoProcessando(false);
+      event.target.value = "";
+    }
   };
 
   const carregar = () => {
@@ -67,6 +78,7 @@ export function EquipamentosPage() {
 
   const salvarEdicao = (ev: React.FormEvent) => {
     ev.preventDefault();
+    if (fotoProcessando) return;
     if (!editando) { setEditando(null); return; }
     if (editando.status === "Entregue" && !editando.assinaturaEntrega) {
       setAssinaturaErro("Colete a assinatura do cliente antes de confirmar a entrega.");
@@ -395,12 +407,13 @@ export function EquipamentosPage() {
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Foto antes</p>
                   {editando.fotoAntes || editando.fotoLocal ? <img src={editando.fotoAntes || editando.fotoLocal} alt="Antes do reparo" className="h-24 w-full rounded-md object-cover" /> : <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">Sem foto</div>}
                 </div>
-                <button type="button" onClick={() => fotoDepoisRef.current?.click()} className="rounded-lg border border-dashed border-input bg-muted/30 p-3 text-left hover:border-primary">
+                <button type="button" disabled={fotoProcessando} onClick={() => fotoDepoisRef.current?.click()} className="rounded-lg border border-dashed border-input bg-muted/30 p-3 text-left hover:border-primary disabled:cursor-wait disabled:opacity-70">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Foto depois</p>
-                  {editando.fotoDepois ? <img src={editando.fotoDepois} alt="Depois do reparo" className="h-24 w-full rounded-md object-cover" /> : <span className="flex h-24 flex-col items-center justify-center gap-1 text-xs text-muted-foreground"><Camera className="h-5 w-5" />Adicionar resultado</span>}
+                  {editando.fotoDepois ? <img src={editando.fotoDepois} alt="Depois do reparo" className="h-24 w-full rounded-md object-cover" /> : <span className="flex h-24 flex-col items-center justify-center gap-1 text-xs text-muted-foreground"><Camera className="h-5 w-5" />{fotoProcessando ? "Processando foto..." : "Adicionar resultado"}</span>}
                   <input ref={fotoDepoisRef} type="file" accept="image/*" className="hidden" onChange={escolherFotoDepois} />
                 </button>
               </div>
+              {fotoErro && <p className="text-xs font-medium text-destructive">{fotoErro}</p>}
 
               <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">📦 Devolução / Entrega ao cliente</p>

@@ -18,6 +18,7 @@ import {
 } from '@/lib/firebaseSync';
 
 import { CATALOGO_POR_TIPO, MARCAS_COMPLETAS_POR_TIPO } from '@/lib/catalogoEquipamentos';
+import { comprimirFoto } from "@/lib/fotos";
 
 type OSVinculada = {
   numero: string;
@@ -190,6 +191,7 @@ export function ClientesPage() {
   const fotoRef = useRef<HTMLInputElement>(null);
   const primeiraCarga = useRef(true);
   const ignorarProximoSalvamento = useRef(false);
+  const [fotoProcessando, setFotoProcessando] = useState(false);
 
   useEffect(() => {
     try {
@@ -252,23 +254,33 @@ export function ClientesPage() {
       c.telefone.includes(busca)
   );
 
-  const handleFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => set("fotoEquipamento", ev.target?.result as string);
-    reader.readAsDataURL(file);
+    setFotoProcessando(true);
+    setErros({});
+    try {
+      const fotoLeve = await comprimirFoto(file);
+      set("fotoEquipamento", fotoLeve);
+    } catch {
+      setErros({ foto: "Não foi possível processar esta foto. Tente escolher outra imagem." });
+    } finally {
+      setFotoProcessando(false);
+      e.target.value = "";
+    }
   };
 
   const avancar = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (fotoProcessando) return;
     setErros({});
     setStep((s) => s + 1);
   };
 
   const handleSalvar = (ev: React.FormEvent) => {
     ev.preventDefault();
+    if (fotoProcessando) return;
     
     const marcaFinal = form.marcaSelect === "Outra" || !form.marcaSelect ? form.marcaDigitada : form.marcaSelect;
     const modeloFinal = form.modeloSelect === "Outro" || !form.modeloSelect ? form.modeloDigitado : form.modeloSelect;
@@ -292,7 +304,8 @@ export function ClientesPage() {
         modelo: modeloFinal.trim() || "Não informado",
         serial: "", // Removido IMEI
         fotoEquipamento: form.fotoEquipamento,
-        fotoAntes: form.fotoEquipamento,
+        // A tela usa fotoEquipamento como fallback; não duplicamos a imagem.
+        fotoAntes: "",
         fotoDepois: "",
         defeito: form.defeito.trim() || "Não relatado",
         servico: form.servico.trim() || "Análise",
@@ -342,7 +355,7 @@ export function ClientesPage() {
 
   const catalogoAtual = CATALOGO_POR_TIPO[form.tipoAparel] || {};
   const marcaCatalogada = catalogoAtual[form.marcaSelect] || {};
-  const usaCascata = form.tipoAparel === 'Smartphone';
+  const usaCascata = form.tipoAparel !== 'Outro';
   const marcasDoFormulario = MARCAS_COMPLETAS_POR_TIPO[form.tipoAparel] || marcasDisponiveis;
   const linhasDisponiveis = Object.keys(marcaCatalogada).length > 0
     ? Object.keys(marcaCatalogada)
@@ -710,11 +723,13 @@ export function ClientesPage() {
                         )}
                       </div>
                       <button type="button" onClick={() => fotoRef.current?.click()}
+                        disabled={fotoProcessando}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">
                         <Upload className="h-3.5 w-3.5" />
-                        {form.fotoEquipamento ? "Trocar foto" : "Escolher da galeria / explorador"}
+                        {fotoProcessando ? "Processando foto..." : form.fotoEquipamento ? "Trocar foto" : "Escolher da galeria / explorador"}
                       </button>
                       <input ref={fotoRef} type="file" accept="image/*" className="hidden" onChange={handleFoto} />
+                      {erros.foto && <p className="text-center text-xs text-destructive">{erros.foto}</p>}
                     </div>
 
                     <div>

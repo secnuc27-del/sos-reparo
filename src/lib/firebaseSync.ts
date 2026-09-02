@@ -49,6 +49,17 @@ function chaveCliente(cliente: unknown) {
   return JSON.stringify(cliente);
 }
 
+function chavePendente(pendente: unknown) {
+  if (pendente && typeof pendente === 'object') return chaveCliente(pendente);
+  if (pendente !== undefined && pendente !== null) return 'id:' + String(pendente);
+  return JSON.stringify(pendente);
+}
+
+function resolverPendente(pendente: unknown, clientesLocais: unknown[]) {
+  const chave = chavePendente(pendente);
+  return clientesLocais.find((cliente) => chaveCliente(cliente) === chave) ?? pendente;
+}
+
 function lerClientesPendentes() {
   const pendentes = lerLocal<unknown>(CLIENTES_PENDENTES_STORAGE_KEY);
   return Array.isArray(pendentes) ? pendentes : [];
@@ -67,24 +78,30 @@ function limparClientesPendentes() {
 }
 
 function adicionarPendentes(clientesBase: unknown[], pendentes: unknown[]) {
+  const clientesLocais = lerLocal<unknown[]>(CLIENTES_STORAGE_KEY) ?? [];
+  const pendentesCompletos = pendentes.map((pendente) => resolverPendente(pendente, clientesLocais));
   const chavesBase = new Set(clientesBase.map(chaveCliente));
   return [
-    ...pendentes.filter((cliente) => !chavesBase.has(chaveCliente(cliente))),
+    ...pendentesCompletos.filter((cliente) => !chavesBase.has(chaveCliente(cliente))),
     ...clientesBase,
   ];
 }
 
 function pendentesQueNaoVieram(clientesRemotos: unknown[], pendentes: unknown[]) {
   const chavesRemotas = new Set(clientesRemotos.map(chaveCliente));
-  return pendentes.filter((cliente) => !chavesRemotas.has(chaveCliente(cliente)));
+  return pendentes.filter((pendente) => !chavesRemotas.has(chavePendente(pendente)));
 }
 
 export function marcarClienteLocalPendente(cliente: unknown) {
   const pendentes = lerClientesPendentes();
-  const chave = chaveCliente(cliente);
+  const id = cliente && typeof cliente === 'object'
+    ? (cliente as Record<string, unknown>).id
+    : undefined;
+  const marcador = id !== undefined && id !== null ? { id } : cliente;
+  const chave = chavePendente(marcador);
   gravarClientesPendentes([
-    cliente,
-    ...pendentes.filter((item) => chaveCliente(item) !== chave),
+    marcador,
+    ...pendentes.filter((item) => chavePendente(item) !== chave),
   ]);
 }
 
@@ -225,8 +242,9 @@ export async function salvarClienteFirebase(cliente: unknown) {
 
 export async function salvarClientesPendentesFirebase() {
   const pendentes = lerClientesPendentes();
+  const clientesLocais = lerLocal<unknown[]>(CLIENTES_STORAGE_KEY) ?? [];
   for (const cliente of pendentes) {
-    await salvarClienteFirebase(cliente);
+    await salvarClienteFirebase(resolverPendente(cliente, clientesLocais));
   }
 }
 
