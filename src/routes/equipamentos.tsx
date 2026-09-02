@@ -8,6 +8,7 @@ import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica } from "@/lib/o
 import { comprimirFoto } from "@/lib/fotos";
 import { MarcaLogo } from "@/components/MarcaLogo";
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 const tipoIcon: Record<string, typeof Smartphone> = {
   Smartphone,
@@ -39,6 +40,12 @@ export function EquipamentosPage() {
   const [fotoErro, setFotoErro] = useState("");
   const [fotoProcessando, setFotoProcessando] = useState(false);
   const fotoDepoisRef = useRef<HTMLInputElement>(null);
+
+  const abrirEdicao = (equipamento: any) => {
+    setAssinaturaErro("");
+    setFotoErro("");
+    setEditando({ ...equipamento });
+  };
 
   const escolherFotoDepois = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const arquivo = event.target.files?.[0];
@@ -77,6 +84,17 @@ export function EquipamentosPage() {
       window.removeEventListener("sos-firebase-update", carregar);
     };
   }, []);
+
+  useEffect(() => {
+    if (!editando) return;
+
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = overflowAnterior;
+    };
+  }, [editando]);
 
   const salvarEdicao = (ev: React.FormEvent) => {
     ev.preventDefault();
@@ -246,7 +264,8 @@ export function EquipamentosPage() {
     return (
       <div key={eq.id} className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md relative group">
         <button
-            onClick={() => setEditando(eq)}
+            type="button"
+            onClick={() => abrirEdicao(eq)}
             className="absolute top-4 right-4 z-10 p-2 bg-background/80 backdrop-blur-sm border border-border rounded-lg text-muted-foreground hover:text-primary hover:border-primary transition-all opacity-100 lg:opacity-0 lg:group-hover:opacity-100 shadow-sm"
             title="Editar informações"
           >
@@ -369,10 +388,22 @@ export function EquipamentosPage() {
       </div>
 
       {/* Modal de edição */}
-      {editando && (
-        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-          <div className="modal-panel w-full max-w-md rounded-xl border border-border bg-card shadow-lg flex flex-col max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-border px-5 py-4 sticky top-0 bg-card z-10">
+      {editando && typeof document !== "undefined" && createPortal(
+        <div
+          className="modal-backdrop fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-3 backdrop-blur-sm sm:p-4"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setEditando(null);
+          }}
+        >
+          <div
+            className="modal-panel relative flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl sm:max-h-[90vh]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="editar-equipamento-titulo"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-5 py-4">
               <div>
                 <h3 className="font-semibold text-foreground">Editar Equipamento / OS</h3>
                 <p className="text-xs text-muted-foreground">{editando.marca} {editando.modelo} — {editando.cliente}</p>
@@ -381,7 +412,7 @@ export function EquipamentosPage() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <form onSubmit={salvarEdicao} className="p-5 space-y-4">
+            <form onSubmit={salvarEdicao} className="min-h-0 overflow-y-auto p-5 space-y-4">
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</label>
                 <select value={editando.status} onChange={e => setEditando({...editando, status: e.target.value})} className={inputCls}>
@@ -454,7 +485,7 @@ export function EquipamentosPage() {
             </form>
           </div>
         </div>
-      )}
+      , document.body)}
     </Layout>
   );
 }
