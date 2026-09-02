@@ -5,7 +5,6 @@ import { routeTree } from "./routeTree";
 import { AuthProvider, useAuth } from "./components/AuthProvider";
 import { LoginPage } from "./components/LoginPage";
 import { ThemeProvider } from "./components/ThemeProvider";
-import { iniciarSincronizacaoFirebase } from "./lib/firebaseSync";
 import "./styles.css";
 
 const hashHistory = createHashHistory();
@@ -33,7 +32,6 @@ function App() {
 }
 
 const root = document.getElementById("root")!;
-void iniciarSincronizacaoFirebase();
 createRoot(root).render(
   <StrictMode>
     <ThemeProvider>

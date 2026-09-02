@@ -12,14 +12,11 @@ import {
   LayoutDashboard,
   CheckCircle2,
   Menu,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useAuth } from "./AuthProvider";
 import { useTheme } from "./ThemeProvider";
 import { logoUrl } from "@/lib/logo";
-import { obterStatusFirebase, type FirebaseStatus } from "@/lib/firebaseSync";
 
 const navItems = [
   { to: "/", label: "Visão Geral", icon: LayoutDashboard },
@@ -39,24 +36,6 @@ export function Layout({ children }: { children?: ReactNode }) {
   const { logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [menuAberto, setMenuAberto] = useState(false);
-  const [firebaseStatus, setFirebaseStatus] = useState<FirebaseStatus>(obterStatusFirebase());
-
-  useEffect(() => {
-    const atualizarStatus = (event: Event) => {
-      const status = (event as CustomEvent<FirebaseStatus>).detail;
-      if (status === "conectando" || status === "conectado" || status === "offline") {
-        setFirebaseStatus(status);
-      }
-    };
-    window.addEventListener("sos-firebase-status", atualizarStatus);
-    return () => window.removeEventListener("sos-firebase-status", atualizarStatus);
-  }, []);
-
-  const statusFirebase = {
-    conectando: { label: "Conectando…", className: "text-amber-600", Icon: Wifi },
-    conectado: { label: "Sincronizado", className: "text-emerald-600", Icon: Wifi },
-    offline: { label: "Offline", className: "text-red-600", Icon: WifiOff },
-  }[firebaseStatus];
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -127,13 +106,6 @@ export function Layout({ children }: { children?: ReactNode }) {
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <span
-              className={`flex items-center gap-1.5 text-xs font-semibold ${statusFirebase.className}`}
-              title={`Firebase: ${statusFirebase.label}`}
-            >
-              <statusFirebase.Icon className="h-4 w-4" />
-              <span className="hidden sm:inline">{statusFirebase.label}</span>
-            </span>
             <label
               className="theme-switch"
               title={theme === "dark" ? "Ativar modo claro" : "Ativar modo noite"}

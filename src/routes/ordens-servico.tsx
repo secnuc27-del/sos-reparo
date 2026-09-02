@@ -19,7 +19,6 @@ import {
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
-import { salvarClientesFirebase } from "@/lib/firebaseSync";
 import { QRCodeSVG } from "qrcode.react";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica, urlOSPublica } from "@/lib/osPublica";
 import { MarcaLogo } from "@/components/MarcaLogo";
@@ -241,7 +240,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
         const clientes = JSON.parse(salvo);
         const novos = clientes.filter((c: any) => c.id !== os.clienteId);
         localStorage.setItem("sos_clientes", JSON.stringify(novos));
-        void salvarClientesFirebase(novos);
       }
     } catch {}
     setConfirmDelete(null);
@@ -268,11 +266,9 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
     
     window.addEventListener("storage", onStorageChange);
     window.addEventListener("focus", onStorageChange);
-    window.addEventListener("sos-firebase-update", onStorageChange);
     return () => {
       window.removeEventListener("storage", onStorageChange);
       window.removeEventListener("focus", onStorageChange);
-      window.removeEventListener("sos-firebase-update", onStorageChange);
     };
   }, []);
 

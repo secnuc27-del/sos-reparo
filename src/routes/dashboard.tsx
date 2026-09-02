@@ -18,18 +18,11 @@ export function DashboardPage() {
     concluidos: 0,
     taxaConclusao: 0,
   });
-  const [firebaseVersion, setFirebaseVersion] = useState(0);
   const [periodo, setPeriodo] = useState<"todos" | "dia" | "semana" | "mes">("todos");
   const [dataReferencia, setDataReferencia] = useState("");
 
   const [graficoStatus, setGraficoStatus] = useState<any[]>([]);
   const [graficoDefeitos, setGraficoDefeitos] = useState<any[]>([]);
-
-  useEffect(() => {
-    const atualizar = () => setFirebaseVersion((version) => version + 1);
-    window.addEventListener("sos-firebase-update", atualizar);
-    return () => window.removeEventListener("sos-firebase-update", atualizar);
-  }, []);
 
   useEffect(() => {
     let ordensLocais: any[] = [];
@@ -151,7 +144,7 @@ export function DashboardPage() {
     
     setGraficoDefeitos(topTipos);
 
-  }, [firebaseVersion, periodo, dataReferencia]);
+  }, [periodo, dataReferencia]);
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);

@@ -1,7 +1,7 @@
 import { Layout } from "@/components/Layout";
 import { Search, Smartphone, Laptop, Monitor, Printer, Tablet, Gamepad2, Edit2, X, Camera, Upload, PenLine } from "lucide-react";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
-import { salvarClientesFirebase, salvarClientesLocal, salvarEdicoesFirebase } from "@/lib/firebaseSync";
+import { salvarClientesLocal } from "@/lib/localDados";
 import { SignatureCanvas } from "@/components/SignatureCanvas";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica } from "@/lib/osPublica";
 import { comprimirFoto } from "@/lib/fotos";
@@ -55,15 +55,10 @@ export function EquipamentosPage() {
     }
   };
 
-  const carregar = (event?: Event) => {
+  const carregar = () => {
     try {
-      const detalhe = event ? (event as CustomEvent<unknown>).detail : undefined;
-      if (Array.isArray(detalhe)) {
-        setLocais(detalhe);
-      } else {
-        const salvo = localStorage.getItem("sos_clientes");
-        if (salvo) setLocais(JSON.parse(salvo));
-      }
+      const salvo = localStorage.getItem("sos_clientes");
+      if (salvo) setLocais(JSON.parse(salvo));
       const staticSalvo = localStorage.getItem("sos_eq_static_edits");
       if (staticSalvo) setStaticEdits(JSON.parse(staticSalvo));
     } catch {}
@@ -74,11 +69,9 @@ export function EquipamentosPage() {
     // Recarrega quando o usuário volta pra esta aba/página
     window.addEventListener("focus", carregar);
     window.addEventListener("storage", carregar);
-    window.addEventListener("sos-firebase-update", carregar);
     return () => {
       window.removeEventListener("focus", carregar);
       window.removeEventListener("storage", carregar);
-      window.removeEventListener("sos-firebase-update", carregar);
     };
   }, []);
 
@@ -122,7 +115,6 @@ export function EquipamentosPage() {
             return c;
           });
           salvarClientesLocal(novos);
-          void salvarClientesFirebase(novos);
         }
       } catch {}
     } else {
@@ -148,7 +140,6 @@ export function EquipamentosPage() {
           }
         };
         localStorage.setItem("sos_eq_static_edits", JSON.stringify(novosEdits));
-        void salvarEdicoesFirebase(novosEdits);
         void salvarOSPublica(criarRegistroOSPublica({
           ...editando,
           publicToken: tokenOSPublica(editando.numeroOS || editando.id),

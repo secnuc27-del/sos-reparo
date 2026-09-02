@@ -5,18 +5,9 @@ import {
   Wrench, CalendarDays, UserCheck, DollarSign, ClipboardList, ChevronDown, Check,
 } from "lucide-react";
 import { clientes as clientesIniciais } from "@/lib/dados";
-import { salvarClientesFirebase } from "@/lib/firebaseSync";
+import { salvarClientesLocal } from "@/lib/localDados";
 import { gerarTokenOS } from "@/lib/osPublica";
 import { useState, useRef, useEffect } from "react";
-
-import {
-  existemClientesPendentes,
-  marcarClienteLocalPendente,
-  salvarClienteFirebase,
-  salvarClientesPendentesFirebase,
-  salvarClientesLocal,
-  iniciarSincronizacaoFirebase,
-} from '@/lib/firebaseSync';
 
 import { CATALOGO_POR_TIPO, MARCAS_COMPLETAS_POR_TIPO } from '@/lib/catalogoEquipamentos';
 import { comprimirFoto, MAX_TAMANHO_FOTO_BYTES } from "@/lib/fotos";
@@ -191,62 +182,13 @@ export function ClientesPage() {
   const [form, setForm] = useState(() => ({ ...formVazio(), telefone: '+55 ' }));
   const [erros, setErros] = useState<Record<string, string>>({});
   const fotoRef = useRef<HTMLInputElement>(null);
-  const primeiraCarga = useRef(true);
-  const ignorarProximoSalvamento = useRef(false);
   const [fotoProcessando, setFotoProcessando] = useState(false);
   const [marcaAberta, setMarcaAberta] = useState(false);
   const marcaMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     salvarClientesLocal(clientes);
-
-    if (primeiraCarga.current) {
-      primeiraCarga.current = false;
-      if (existemClientesPendentes()) void salvarClientesPendentesFirebase();
-      return;
-    }
-
-    if (ignorarProximoSalvamento.current) {
-      ignorarProximoSalvamento.current = false;
-      return;
-    }
-
-    void salvarClientesFirebase(clientes);
   }, [clientes]);
-
-  useEffect(() => {
-    const atualizarClientes = (event: Event) => {
-      const detalhe = (event as CustomEvent<unknown>).detail;
-      const clientesAtualizados = Array.isArray(detalhe)
-        ? detalhe as ClienteCompleto[]
-        : carregarClientes();
-      setClientes((atuais) => {
-        if (JSON.stringify(atuais) === JSON.stringify(clientesAtualizados)) return atuais;
-        ignorarProximoSalvamento.current = true;
-        return clientesAtualizados;
-      });
-    };
-    window.addEventListener("sos-firebase-update", atualizarClientes);
-    return () => window.removeEventListener("sos-firebase-update", atualizarClientes);
-  }, []);
-
-  useEffect(() => {
-    let ativo = true;
-    void iniciarSincronizacaoFirebase().then((clientesSincronizados) => {
-      if (!ativo) return;
-      const clientesAtualizados = Array.isArray(clientesSincronizados)
-        ? clientesSincronizados as ClienteCompleto[]
-        : carregarClientes();
-      setClientes((atuais) => {
-        if (JSON.stringify(atuais) === JSON.stringify(clientesAtualizados)) return atuais;
-        ignorarProximoSalvamento.current = true;
-        return clientesAtualizados;
-      });
-    });
-    return () => {
-      ativo = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (!marcaAberta) return;
@@ -353,12 +295,9 @@ export function ClientesPage() {
         valor: form.valor.trim() || "A orçar",
       },
     };
-    marcarClienteLocalPendente(novo);
     const atualizado = [novo, ...clientes];
     salvarClientesLocal(atualizado);
-    ignorarProximoSalvamento.current = true;
     setClientes(atualizado);
-    void salvarClienteFirebase(novo);
     fechar();
   };
 
