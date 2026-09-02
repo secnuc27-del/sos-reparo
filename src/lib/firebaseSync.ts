@@ -371,7 +371,6 @@ export async function excluirClienteFirebase(cliente: unknown) {
   if (id === undefined || id === null) return false;
 
   try {
-    await iniciarSincronizacaoFirebase();
     const clientesRef = ref(database, CLIENTES_PATH);
     const snapshot = await comPrazo(
       get(clientesRef),
@@ -381,16 +380,25 @@ export async function excluirClienteFirebase(cliente: unknown) {
     if (snapshot.exists()) {
       const entrada = Object.entries(snapshot.val() as Record<string, unknown>)
         .find(([, item]) => item && typeof item === "object" && String((item as Record<string, unknown>).id) === String(id));
-      if (entrada) await remove(ref(database, `${CLIENTES_PATH}/${entrada[0]}`));
+      if (entrada) {
+        await comPrazo(
+          remove(ref(database, `${CLIENTES_PATH}/${entrada[0]}`)),
+          "Firebase demorou demais para excluir o cliente.",
+        );
+      }
     }
 
     const os = registro.os;
     if (os?.numero) {
       const token = tokenOSPublica(String(os.numero), os.publicToken);
-      await remove(ref(database, `${PUBLIC_PATH}/${token}`));
+      void comPrazo(
+        remove(ref(database, `${PUBLIC_PATH}/${token}`)),
+        "Firebase demorou demais para remover a OS pública.",
+      ).catch((error) => {
+        // A limpeza da página pública não pode impedir a exclusão do cliente.
+        console.warn("N\\u00e3o foi poss\\u00edvel remover a OS p\\u00fablica:", error);
+      });
     }
-
-    avisarAtualizacao();
     avisarStatus("conectado");
     return true;
   } catch (error) {

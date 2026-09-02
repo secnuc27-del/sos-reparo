@@ -290,7 +290,13 @@ export function ClientesPage() {
   }, [abrirModal, clienteParaExcluir]);
 
   useEffect(() => {
-    const atualizarClientes = () => {
+    const atualizarClientes = (event: Event) => {
+      const detalhe = event instanceof CustomEvent ? event.detail : undefined;
+      if (Array.isArray(detalhe)) {
+        setClientes(detalhe as ClienteCompleto[]);
+        return;
+      }
+
       try {
         const salvo = localStorage.getItem(STORAGE_KEY);
         if (salvo) setClientes(JSON.parse(salvo));
@@ -349,18 +355,22 @@ export function ClientesPage() {
     if (!clienteParaExcluir) return;
     setExcluindoCliente(true);
     setErroExclusao("");
-    const removido = await excluirClienteFirebase(clienteParaExcluir);
-    if (!removido) {
-      setErroExclusao("NÃ£o foi possÃ­vel excluir agora. Verifique a conexÃ£o e tente novamente.");
-      setExcluindoCliente(false);
-      return;
-    }
+    try {
+      const removido = await excluirClienteFirebase(clienteParaExcluir);
+      if (!removido) {
+        setErroExclusao("N\u00e3o foi poss\u00edvel excluir agora. Verifique a conex\u00e3o e tente novamente.");
+        return;
+      }
 
-    const atualizado = clientes.filter((cliente) => cliente.id !== clienteParaExcluir.id);
-    salvarClientesLocal(atualizado);
-    setClientes(atualizado);
-    setClienteParaExcluir(null);
-    setExcluindoCliente(false);
+      const atualizado = clientes.filter((cliente) => cliente.id !== clienteParaExcluir.id);
+      salvarClientesLocal(atualizado);
+      setClientes(atualizado);
+      setClienteParaExcluir(null);
+    } catch {
+      setErroExclusao("N\u00e3o foi poss\u00edvel excluir agora. Verifique a conex\u00e3o e tente novamente.");
+    } finally {
+      setExcluindoCliente(false);
+    }
   };
 
   const filtrados = clientes.filter(
@@ -374,7 +384,7 @@ export function ClientesPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_TAMANHO_FOTO_BYTES) {
-      setErros({ foto: "A foto precisa ter no mÃ¡ximo 1 GB." });
+      setErros({ foto: "A foto precisa ter no m\u00e1ximo 1 GB." });
       e.target.value = "";
       return;
     }
@@ -914,7 +924,7 @@ export function ClientesPage() {
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">NÃºmero de sÃ©rie / IMEI</label>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">N\u00famero de s\u00e9rie / IMEI</label>
                       <input type="text" value={form.serial} onChange={(e) => set("serial", e.target.value)} placeholder="Opcional" className={inputCls()} />
                     </div>
 
@@ -1210,7 +1220,9 @@ export function ClientesPage() {
               <div>
                 <h3 className="text-lg font-bold text-foreground">Excluir cliente?</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Isso removerÃ¡ <span className="font-semibold text-foreground">{clienteParaExcluir.nome}</span> e a OS vinculada de todos os dispositivos.
+                  {"Isso remover\u00e1 "}
+                  <span className="font-semibold text-foreground">{clienteParaExcluir.nome}</span>
+                  {" e a OS vinculada de todos os dispositivos."}
                 </p>
               </div>
             </div>
