@@ -152,7 +152,11 @@ function iniciarListeners() {
       const mapaPublico = snapshot.val() as Record<string, PublicOSRecord>;
       const clientesLocais = lerLocal<any[]>(CLIENTES_STORAGE_KEY);
       if (clientesLocais) {
-        const atualizados = mesclarAprovacoesPublicas(clientesLocais, mapaPublico);
+        const clientesPendentes = lerClientesPendentes();
+        const baseProtegida = clientesPendentes.length > 0
+          ? adicionarPendentes(clientesLocais, clientesPendentes)
+          : clientesLocais;
+        const atualizados = mesclarAprovacoesPublicas(baseProtegida, mapaPublico);
         if (atualizados !== clientesLocais) gravarLocal(CLIENTES_STORAGE_KEY, atualizados);
       }
       avisarAtualizacao();
