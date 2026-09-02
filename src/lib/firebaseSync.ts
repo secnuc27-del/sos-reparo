@@ -177,6 +177,29 @@ export function iniciarSincronizacaoFirebase() {
   return inicializacao;
 }
 
+export async function salvarClienteFirebase(cliente: unknown) {
+  if (!cliente || typeof cliente !== 'object') return;
+  const id = (cliente as Record<string, unknown>).id;
+  if (id === undefined || id === null) return;
+
+  await iniciarSincronizacaoFirebase();
+  try {
+    // Cadastro novo: grava somente este registro para não sobrescrever outros
+    // clientes cadastrados em outro celular.
+    await set(ref(database, CLIENTES_PATH + '/' + String(id)), cliente as object);
+    await sincronizarOSPublicas([cliente]);
+  } catch (error) {
+    console.warn('Não foi possível salvar o novo cliente no Firebase:', error);
+  }
+}
+
+export async function salvarClientesPendentesFirebase() {
+  const pendentes = lerClientesPendentes();
+  for (const cliente of pendentes) {
+    await salvarClienteFirebase(cliente);
+  }
+}
+
 export async function salvarClientesFirebase(clientes: unknown) {
   await iniciarSincronizacaoFirebase();
   try {

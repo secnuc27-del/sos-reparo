@@ -228,6 +228,8 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
   };
 
   const excluirOS = (os: any) => {
+    setConfirmDelete(null);
+    return;
     if (!os.clienteId) {
       setConfirmDelete(null);
       return; // can't delete static entries
@@ -435,7 +437,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
                   <WhatsAppIcon className="h-4 w-4" />
                 </button>
               )}
-              {os.clienteId && (
+              {false && os.clienteId && (
                 <button
                   onClick={() => setConfirmDelete(os.id)}
                   className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-red-500/50"
@@ -449,7 +451,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
         </div>
 
         {/* Modal de confirmação de delete */}
-        {confirmDelete === os.id && (
+        {false && confirmDelete === os.id && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-2xl">
             <div className="bg-card border border-border rounded-xl p-6 shadow-xl text-center max-w-xs mx-4 animate-in zoom-in-95 duration-200">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 mb-4">

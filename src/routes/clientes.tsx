@@ -12,12 +12,17 @@ import { useState, useRef, useEffect } from "react";
 import {
   existemClientesPendentes,
   marcarClienteLocalPendente,
+  salvarClienteFirebase,
+  salvarClientesPendentesFirebase,
 } from '@/lib/firebaseSync';
+
+import { CATALOGO_POR_TIPO, MARCAS_COMPLETAS_POR_TIPO } from '@/lib/catalogoEquipamentos';
 
 type OSVinculada = {
   numero: string;
   tipoAparel: string;
   marca: string;
+  linha?: string;
   modelo: string;
   serial: string;
   fotoEquipamento: string;
@@ -41,6 +46,8 @@ type ClienteCompleto = {
   codigo: string;
   nome: string;
   telefone: string;
+  estado?: string;
+  ddd?: string;
   email: string;
   cidade: string;
   equipamentos: number;
@@ -77,7 +84,7 @@ const hoje = () => {
   return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
 };
 
-const TIPOS = ["Smartphone", "Notebook", "Desktop", "Tablet", "Console", "Outro"];
+const TIPOS = ["Smartphone", "Notebook", "Desktop", "Tablet", "Console", "Impressora", "Outro"];
 const STATUS_OS = ["Aguardando", "Em análise", "Em reparo", "Aguardando peça", "Concluído", "Entregue"];
 const TECNICOS = ["Rafael M.", "Beatriz L.", "Diego F.", "Carlos T."];
 
@@ -105,6 +112,53 @@ const MODELOS_SAMSUNG = [
   "Outro"
 ];
 
+const ESTADOS_BR = [
+  { sigla: 'AC', nome: 'Acre', ddds: ['68'] },
+  { sigla: 'AL', nome: 'Alagoas', ddds: ['82'] },
+  { sigla: 'AP', nome: 'Amapá', ddds: ['96'] },
+  { sigla: 'AM', nome: 'Amazonas', ddds: ['92', '97'] },
+  { sigla: 'BA', nome: 'Bahia', ddds: ['71', '73', '74', '75', '77'] },
+  { sigla: 'CE', nome: 'Ceará', ddds: ['85', '88'] },
+  { sigla: 'DF', nome: 'Distrito Federal', ddds: ['61'] },
+  { sigla: 'ES', nome: 'Espírito Santo', ddds: ['27', '28'] },
+  { sigla: 'GO', nome: 'Goiás', ddds: ['61', '62', '64'] },
+  { sigla: 'MA', nome: 'Maranhão', ddds: ['98', '99'] },
+  { sigla: 'MT', nome: 'Mato Grosso', ddds: ['65', '66'] },
+  { sigla: 'MS', nome: 'Mato Grosso do Sul', ddds: ['67'] },
+  { sigla: 'MG', nome: 'Minas Gerais', ddds: ['31', '32', '33', '34', '35', '37', '38'] },
+  { sigla: 'PA', nome: 'Pará', ddds: ['91', '93', '94'] },
+  { sigla: 'PB', nome: 'Paraíba', ddds: ['83'] },
+  { sigla: 'PR', nome: 'Paraná', ddds: ['41', '42', '43', '44', '45', '46'] },
+  { sigla: 'PE', nome: 'Pernambuco', ddds: ['81', '87'] },
+  { sigla: 'PI', nome: 'Piauí', ddds: ['86', '89'] },
+  { sigla: 'RJ', nome: 'Rio de Janeiro', ddds: ['21', '22', '24'] },
+  { sigla: 'RN', nome: 'Rio Grande do Norte', ddds: ['84'] },
+  { sigla: 'RS', nome: 'Rio Grande do Sul', ddds: ['51', '53', '54', '55'] },
+  { sigla: 'RO', nome: 'Rondônia', ddds: ['69'] },
+  { sigla: 'RR', nome: 'Roraima', ddds: ['95'] },
+  { sigla: 'SC', nome: 'Santa Catarina', ddds: ['47', '48', '49'] },
+  { sigla: 'SP', nome: 'São Paulo', ddds: ['11', '12', '13', '14', '15', '16', '17', '18', '19'] },
+  { sigla: 'SE', nome: 'Sergipe', ddds: ['79'] },
+  { sigla: 'TO', nome: 'Tocantins', ddds: ['63'] },
+];
+
+const extrairNumeroLocal = (valor: string, ddd = '') => {
+  let numero = valor.replace(/\D/g, '');
+  if (numero.startsWith('55')) numero = numero.slice(2);
+  if (ddd && numero.startsWith(ddd)) numero = numero.slice(ddd.length);
+  return numero.slice(0, 9);
+};
+
+const formatarTelefone = (valor: string, ddd = '') => {
+  const numero = extrairNumeroLocal(valor, ddd);
+  const formatado = numero.length > 8
+    ? numero.slice(0, 5) + '-' + numero.slice(5)
+    : numero.length > 4
+      ? numero.slice(0, 4) + '-' + numero.slice(4)
+      : numero;
+  return ddd ? '+55 (' + ddd + ') ' + formatado : '+55 ' + formatado;
+};
+
 const maskDate = (val: string) => {
   let v = val.replace(/\D/g, "");
   if (v.length > 8) v = v.slice(0, 8);
@@ -114,6 +168,8 @@ const maskDate = (val: string) => {
 };
 
 const formVazio = () => ({
+  linhaSelect: '', linhaDigitada: '',
+  estado: '', ddd: '',
   nome: "", telefone: "", email: "", cidade: "",
   tipoAparel: "Smartphone", 
   marcaSelect: "", marcaDigitada: "",
@@ -128,7 +184,7 @@ export function ClientesPage() {
   const [busca, setBusca] = useState("");
   const [abrirModal, setAbrirModal] = useState(false);
   const [step, setStep] = useState(1);
-  const [form, setForm] = useState(formVazio());
+  const [form, setForm] = useState(() => ({ ...formVazio(), telefone: '+55 ' }));
   const [erros, setErros] = useState<Record<string, string>>({});
   const fotoRef = useRef<HTMLInputElement>(null);
   const primeiraCarga = useRef(true);
@@ -141,7 +197,7 @@ export function ClientesPage() {
 
     if (primeiraCarga.current) {
       primeiraCarga.current = false;
-      if (existemClientesPendentes()) void salvarClientesFirebase(clientes);
+      if (existemClientesPendentes()) void salvarClientesPendentesFirebase();
       return;
     }
 
@@ -167,7 +223,10 @@ export function ClientesPage() {
   }, []);
 
   const set = (key: string, val: string) =>
-    setForm((f) => ({ ...f, [key]: val }));
+    setForm((f) => ({
+      ...f,
+      [key]: key === 'telefone' ? formatarTelefone(val, f.ddd) : val,
+    }));
 
   const filtrados = clientes.filter(
     (c) =>
@@ -204,9 +263,12 @@ export function ClientesPage() {
       telefone: form.telefone.trim() || "Sem telefone",
       email: form.email.trim(),
       cidade: form.cidade.trim(),
+      estado: form.estado,
+      ddd: form.ddd,
       equipamentos: 1,
       status: "Ativo",
       os: {
+        linha: linhaFinal.trim(),
         numero: gerarOS(clientes),
         tipoAparel: form.tipoAparel,
         marca: marcaFinal.trim() || "Não informada",
@@ -229,17 +291,20 @@ export function ClientesPage() {
       },
     };
     marcarClienteLocalPendente(novo);
-    setClientes((prev) => {
-      const atualizado = [novo, ...prev];
-      return atualizado;
-    });
+    const atualizado = [novo, ...clientes];
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(atualizado));
+    } catch {}
+    ignorarProximoSalvamento.current = true;
+    setClientes(atualizado);
+    void salvarClienteFirebase(novo);
     fechar();
   };
 
   const fechar = () => {
     setAbrirModal(false);
     setStep(1);
-    setForm(formVazio());
+    setForm({ ...formVazio(), telefone: '+55 ' });
     setErros({});
   };
 
@@ -257,6 +322,23 @@ export function ClientesPage() {
 
   const marcaFinal = form.marcaSelect === "Outra" || !form.marcaSelect ? form.marcaDigitada : form.marcaSelect;
   const modeloFinal = form.modeloSelect === "Outro" || !form.modeloSelect ? form.modeloDigitado : form.modeloSelect;
+
+  const catalogoAtual = CATALOGO_POR_TIPO[form.tipoAparel] || {};
+  const marcaCatalogada = catalogoAtual[form.marcaSelect] || {};
+  const usaCascata = form.tipoAparel === 'Smartphone';
+  const marcasDoFormulario = MARCAS_COMPLETAS_POR_TIPO[form.tipoAparel] || marcasDisponiveis;
+  const linhasDisponiveis = Object.keys(marcaCatalogada).length > 0
+    ? Object.keys(marcaCatalogada)
+    : ['Outra'];
+  const modelosDaLinha = form.linhaSelect
+    ? (marcaCatalogada[form.linhaSelect] || [])
+    : [];
+  const modelosDoFormulario = usaCascata
+    ? (form.linhaSelect ? [...modelosDaLinha, 'Outro'] : [])
+    : modelosDisponiveis;
+  const linhaFinal = form.linhaSelect === 'Outra' || !form.linhaSelect
+    ? form.linhaDigitada
+    : form.linhaSelect;
 
   return (
     <Layout>
@@ -500,6 +582,58 @@ export function ClientesPage() {
                 {/* PASSO 1 — Cliente */}
                 {step === 1 && (
                   <>
+                    <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+                      <div>
+                        <label className='mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                          Estado
+                        </label>
+                        <select
+                          value={form.estado}
+                          onChange={(e) => {
+                            const selecionado = ESTADOS_BR.find((estado) => estado.sigla === e.target.value);
+                            const numero = extrairNumeroLocal(form.telefone, form.ddd);
+                            const ddd = selecionado?.ddds[0] ?? '';
+                            setForm((atual) => ({
+                              ...atual,
+                              estado: e.target.value,
+                              ddd,
+                              telefone: formatarTelefone(numero, ddd),
+                            }));
+                          }}
+                          className={inputCls()}
+                        >
+                          <option value=''>Selecione o estado</option>
+                          {ESTADOS_BR.map((estado) => (
+                            <option key={estado.sigla} value={estado.sigla}>
+                              {estado.sigla} - {estado.nome}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className='mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground'>
+                          DDD
+                        </label>
+                        <select
+                          value={form.ddd}
+                          disabled={!form.estado}
+                          onChange={(e) => setForm((atual) => ({
+                            ...atual,
+                            ddd: e.target.value,
+                            telefone: formatarTelefone(
+                              extrairNumeroLocal(atual.telefone, atual.ddd),
+                              e.target.value,
+                            ),
+                          }))}
+                          className={inputCls()}
+                        >
+                          <option value=''>Escolha o estado primeiro</option>
+                          {(ESTADOS_BR.find((estado) => estado.sigla === form.estado)?.ddds ?? []).map((ddd) => (
+                            <option key={ddd} value={ddd}>{ddd}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <UserCheck className="h-4 w-4 text-primary" />
                       <span className="text-sm font-semibold text-foreground">Dados do Cliente</span>
@@ -573,7 +707,10 @@ export function ClientesPage() {
                         onChange={(e) => {
                           set("tipoAparel", e.target.value);
                           set("marcaSelect", "");
+                          set("linhaSelect", "");
+                          set("linhaDigitada", "");
                           set("modeloSelect", "");
+                          set("modeloDigitado", "");
                         }} 
                         className={inputCls()}
                       >
@@ -584,36 +721,83 @@ export function ClientesPage() {
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="space-y-2">
                         <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Marca</label>
-                        <select 
-                          value={form.marcaSelect} 
+                        <select
+                          value={form.marcaSelect}
                           onChange={(e) => {
                             set("marcaSelect", e.target.value);
+                            set("linhaSelect", "");
+                            set("linhaDigitada", "");
                             set("modeloSelect", "");
-                          }} 
+                            set("modeloDigitado", "");
+                          }}
                           className={inputCls()}
                         >
                           <option value="" disabled>Selecione...</option>
-                          {marcasDisponiveis.map(m => <option key={m}>{m}</option>)}
+                          {marcasDoFormulario.map((marca) => <option key={marca}>{marca}</option>)}
                         </select>
-                        {(form.marcaSelect === "Outra" || marcasDisponiveis.length === 1) && (
-                          <input type="text" value={form.marcaDigitada} onChange={(e) => set("marcaDigitada", e.target.value)}
-                            placeholder="Digite a marca..." className={inputCls()} autoFocus />
+                        {form.marcaSelect === "Outra" && (
+                          <input
+                            type="text"
+                            value={form.marcaDigitada}
+                            onChange={(e) => set("marcaDigitada", e.target.value)}
+                            placeholder="Digite a marca..."
+                            className={inputCls()}
+                            autoFocus
+                          />
                         )}
                       </div>
 
+                      {usaCascata && (
+                        <div className="space-y-2">
+                          <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Linha / família</label>
+                          <select
+                            value={form.linhaSelect}
+                            onChange={(e) => {
+                              set("linhaSelect", e.target.value);
+                              set("modeloSelect", "");
+                              set("modeloDigitado", "");
+                            }}
+                            disabled={!form.marcaSelect}
+                            className={inputCls() + " disabled:cursor-not-allowed disabled:opacity-60"}
+                          >
+                            <option value="" disabled>{form.marcaSelect ? "Selecione..." : "Selecione a marca primeiro"}</option>
+                            {linhasDisponiveis.map((linha) => <option key={linha}>{linha}</option>)}
+                          </select>
+                          {form.linhaSelect === "Outra" && (
+                            <input
+                              type="text"
+                              value={form.linhaDigitada}
+                              onChange={(e) => set("linhaDigitada", e.target.value)}
+                              placeholder="Digite a linha / família..."
+                              className={inputCls()}
+                              autoFocus
+                            />
+                          )}
+                        </div>
+                      )}
+
                       <div className="space-y-2">
                         <label className="block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Modelo</label>
-                        <select 
-                          value={form.modeloSelect} 
-                          onChange={(e) => set("modeloSelect", e.target.value)} 
-                          className={inputCls()}
+                        <select
+                          value={form.modeloSelect}
+                          onChange={(e) => set("modeloSelect", e.target.value)}
+                          disabled={usaCascata && !form.linhaSelect}
+                          className={inputCls() + " disabled:cursor-not-allowed disabled:opacity-60"}
                         >
-                          <option value="" disabled>Selecione...</option>
-                          {modelosDisponiveis.map(m => <option key={m}>{m}</option>)}
+                          <option value="" disabled>
+                            {usaCascata && !form.linhaSelect ? "Selecione a linha primeiro" : "Selecione..."}
+                          </option>
+                          {modelosDoFormulario.map((modelo) => <option key={modelo}>{modelo}</option>)}
                         </select>
-                        {(form.modeloSelect === "Outro" || modelosDisponiveis.length === 1) && (
-                          <input type="text" value={form.modeloDigitado} onChange={(e) => set("modeloDigitado", e.target.value)}
-                            placeholder="Digite o modelo..." className={inputCls()} autoFocus />
+                        {form.modeloSelect === "Outro" && (
+                          <input
+                            type="text"
+                            value={form.modeloDigitado}
+                            onChange={(e) => set("modeloDigitado", e.target.value)}
+                            placeholder="Digite o modelo..."
+                            className={inputCls()}
+                            autoFocus
+                          />
                         )}
                       </div>
                     </div>
@@ -689,6 +873,7 @@ export function ClientesPage() {
                           ["Cliente", form.nome],
                           ["Telefone", form.telefone],
                           ["Aparelho", `${marcaFinal} ${modeloFinal}`.trim() || "—"],
+                          ["Linha", linhaFinal || "—"],
                           ["Tipo", form.tipoAparel],
                           ["Defeito", form.defeito || "—"],
                           ["Técnico", form.tecnico],
