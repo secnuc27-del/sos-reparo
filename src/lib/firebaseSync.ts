@@ -1,7 +1,7 @@
-import { get, onValue, ref, set, update, type Unsubscribe } from "firebase/database";
+import { get, onValue, ref, remove, set, update, type Unsubscribe } from "firebase/database";
 import { database } from "./firebase";
 import { clientes as clientesIniciais } from "./dados";
-import { mesclarAprovacoesPublicas, sincronizarOSPublicas, type PublicOSRecord } from "./osPublica";
+import { mesclarAprovacoesPublicas, sincronizarOSPublicas, tokenOSPublica, type PublicOSRecord } from "./osPublica";
 
 const CLIENTES_STORAGE_KEY = "sos_clientes";
 const EDICOES_STORAGE_KEY = "sos_eq_static_edits";
@@ -105,8 +105,8 @@ function comPrazo<T>(promessa: Promise<T>, mensagem: string): Promise<T> {
 }
 
 function normalizarArray(value: unknown): unknown[] {
-  if (Array.isArray(value)) return value;
-  if (value && typeof value === "object") return Object.values(value);
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (value && typeof value === "object") return Object.values(value).filter(Boolean);
   return [];
 }
 
@@ -359,6 +359,43 @@ export async function salvarClienteFirebase(cliente: unknown) {
   } catch (error) {
     avisarStatus("offline");
     console.warn('Não foi possível salvar o novo cliente no Firebase:', error);
+    return false;
+  }
+}
+
+export async function excluirClienteFirebase(cliente: unknown) {
+  if (!cliente || typeof cliente !== "object") return false;
+
+  const registro = cliente as Record<string, any>;
+  const id = registro.id;
+  if (id === undefined || id === null) return false;
+
+  try {
+    await iniciarSincronizacaoFirebase();
+    const clientesRef = ref(database, CLIENTES_PATH);
+    const snapshot = await comPrazo(
+      get(clientesRef),
+      "Firebase demorou demais para excluir o cliente.",
+    );
+
+    if (snapshot.exists()) {
+      const entrada = Object.entries(snapshot.val() as Record<string, unknown>)
+        .find(([, item]) => item && typeof item === "object" && String((item as Record<string, unknown>).id) === String(id));
+      if (entrada) await remove(ref(database, `${CLIENTES_PATH}/${entrada[0]}`));
+    }
+
+    const os = registro.os;
+    if (os?.numero) {
+      const token = tokenOSPublica(String(os.numero), os.publicToken);
+      await remove(ref(database, `${PUBLIC_PATH}/${token}`));
+    }
+
+    avisarAtualizacao();
+    avisarStatus("conectado");
+    return true;
+  } catch (error) {
+    avisarStatus("offline");
+    console.warn("NÃ£o foi possÃ­vel excluir o cliente no Firebase:", error);
     return false;
   }
 }

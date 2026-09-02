@@ -3,10 +3,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import {
   Plus, Search, Phone, Mail, Users, X, Camera, Upload,
   Wrench, CalendarDays, UserCheck, DollarSign, ClipboardList, ChevronDown, Check,
+  Edit2, Trash2, AlertTriangle,
 } from "lucide-react";
 import { clientes as clientesIniciais } from "@/lib/dados";
 import { salvarClientesLocal } from "@/lib/localDados";
-import { marcarClienteLocalPendente, salvarClienteFirebase } from "@/lib/firebaseSync";
+import { excluirClienteFirebase, marcarClienteLocalPendente, salvarClienteFirebase } from "@/lib/firebaseSync";
 import { gerarTokenOS } from "@/lib/osPublica";
 import { useState, useRef, useEffect } from "react";
 
@@ -167,13 +168,77 @@ const formVazio = () => ({
   linhaSelect: '', linhaDigitada: '',
   estado: '', ddd: '',
   nome: "", telefone: "", email: "", cidade: "",
+  statusCliente: "Ativo",
   tipoAparel: "Smartphone", 
   marcaSelect: "", marcaDigitada: "",
   modeloSelect: "", modeloDigitado: "",
-  fotoEquipamento: "", defeito: "",
+  serial: "", fotoEquipamento: "", fotoAntes: "", fotoDepois: "", defeito: "",
   servico: "", tecnico: "", statusOS: "Aguardando",
   dataEntrada: hoje(), dataRetirada: "", valor: "",
+  aprovacaoOrcamento: "pendente",
 });
+
+const prepararFormularioEdicao = (cliente: ClienteCompleto) => {
+  const base = formVazio();
+  const os = cliente.os;
+  if (!os) {
+    return {
+      ...base,
+      statusCliente: cliente.status || "Ativo",
+      estado: cliente.estado || "",
+      ddd: cliente.ddd || "",
+      nome: cliente.nome,
+      telefone: cliente.telefone || "+55 ",
+      email: cliente.email || "",
+      cidade: cliente.cidade || "",
+    };
+  }
+
+  const tipo = os.tipoAparel || "Outro";
+  const marcas = MARCAS_COMPLETAS_POR_TIPO[tipo] || MARCAS_POR_TIPO[tipo] || ["Outra"];
+  const marca = os.marca || "";
+  const marcaSelect = marcas.includes(marca) ? marca : (marca ? "Outra" : "");
+  const marcaDigitada = marcaSelect === "Outra" ? marca : "";
+  const catalogo = CATALOGO_POR_TIPO[tipo]?.[marcaSelect] || {};
+  const linhas = Object.keys(catalogo);
+  const modelo = os.modelo || "";
+  const linhaEncontrada = Object.entries(catalogo).find(([, modelos]) => modelos.includes(modelo))?.[0];
+  const linhaSalva = os.linha || linhaEncontrada || (modelo ? "Outra" : "");
+  const linhaSelect = linhas.includes(linhaSalva) ? linhaSalva : (linhaSalva ? "Outra" : "");
+  const linhaDigitada = linhaSelect === "Outra" ? linhaSalva : "";
+  const modelos = linhaSelect && linhaSelect !== "Outra" ? catalogo[linhaSelect] || [] : [];
+  const modeloSelect = modelos.includes(modelo) ? modelo : (modelo ? "Outro" : "");
+
+  return {
+    ...base,
+    statusCliente: cliente.status || "Ativo",
+    estado: cliente.estado || "",
+    ddd: cliente.ddd || "",
+    nome: cliente.nome,
+    telefone: cliente.telefone || "+55 ",
+    email: cliente.email || "",
+    cidade: cliente.cidade || "",
+    tipoAparel: tipo,
+    marcaSelect,
+    marcaDigitada,
+    linhaSelect,
+    linhaDigitada,
+    modeloSelect,
+    modeloDigitado: modeloSelect === "Outro" ? modelo : "",
+    serial: os.serial || "",
+    fotoEquipamento: os.fotoEquipamento || "",
+    fotoAntes: os.fotoAntes || "",
+    fotoDepois: os.fotoDepois || "",
+    defeito: os.defeito || "",
+    servico: os.servico || "",
+    tecnico: os.tecnico || "",
+    statusOS: os.statusOS || "Aguardando",
+    dataEntrada: os.dataEntrada || hoje(),
+    dataRetirada: os.dataRetirada || "",
+    valor: os.valor || "",
+    aprovacaoOrcamento: os.aprovacaoOrcamento || "pendente",
+  };
+};
 
 export function ClientesPage() {
   const [clientes, setClientes] = useState<ClienteCompleto[]>(carregarClientes);
@@ -186,10 +251,42 @@ export function ClientesPage() {
   const [fotoProcessando, setFotoProcessando] = useState(false);
   const [marcaAberta, setMarcaAberta] = useState(false);
   const marcaMenuRef = useRef<HTMLDivElement>(null);
+  const [clienteEditandoId, setClienteEditandoId] = useState<number | null>(null);
+  const [clienteParaExcluir, setClienteParaExcluir] = useState<ClienteCompleto | null>(null);
+  const [excluindoCliente, setExcluindoCliente] = useState(false);
+  const [erroExclusao, setErroExclusao] = useState("");
+  const fotoAlvoRef = useRef<"fotoEquipamento" | "fotoAntes" | "fotoDepois">("fotoEquipamento");
 
   useEffect(() => {
     salvarClientesLocal(clientes);
   }, [clientes]);
+
+  useEffect(() => {
+    const modalAberto = abrirModal || Boolean(clienteParaExcluir);
+    if (!modalAberto) return;
+
+    const posicaoRolagem = window.scrollY;
+    const htmlOverflowAnterior = document.documentElement.style.overflow;
+    const bodyOverflowAnterior = document.body.style.overflow;
+    const bodyPositionAnterior = document.body.style.position;
+    const bodyTopAnterior = document.body.style.top;
+    const bodyWidthAnterior = document.body.style.width;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${posicaoRolagem}px`;
+    document.body.style.width = "100%";
+
+    return () => {
+      document.documentElement.style.overflow = htmlOverflowAnterior;
+      document.body.style.overflow = bodyOverflowAnterior;
+      document.body.style.position = bodyPositionAnterior;
+      document.body.style.top = bodyTopAnterior;
+      document.body.style.width = bodyWidthAnterior;
+      window.scrollTo(0, posicaoRolagem);
+    };
+  }, [abrirModal, clienteParaExcluir]);
 
   useEffect(() => {
     const atualizarClientes = () => {
@@ -226,6 +323,45 @@ export function ClientesPage() {
       [key]: key === 'telefone' ? formatarTelefone(val, f.ddd) : val,
     }));
 
+  const abrirNovoCliente = () => {
+    setClienteEditandoId(null);
+    setForm({ ...formVazio(), telefone: '+55 ' });
+    setStep(1);
+    setErros({});
+    setAbrirModal(true);
+  };
+
+  const abrirEdicao = (cliente: ClienteCompleto) => {
+    setClienteEditandoId(cliente.id);
+    setForm(prepararFormularioEdicao(cliente));
+    setStep(1);
+    setErros({});
+    setAbrirModal(true);
+  };
+
+  const pedirExclusao = (cliente: ClienteCompleto) => {
+    setErroExclusao("");
+    setClienteParaExcluir(cliente);
+  };
+
+  const confirmarExclusao = async () => {
+    if (!clienteParaExcluir) return;
+    setExcluindoCliente(true);
+    setErroExclusao("");
+    const removido = await excluirClienteFirebase(clienteParaExcluir);
+    if (!removido) {
+      setErroExclusao("NÃ£o foi possÃ­vel excluir agora. Verifique a conexÃ£o e tente novamente.");
+      setExcluindoCliente(false);
+      return;
+    }
+
+    const atualizado = clientes.filter((cliente) => cliente.id !== clienteParaExcluir.id);
+    salvarClientesLocal(atualizado);
+    setClientes(atualizado);
+    setClienteParaExcluir(null);
+    setExcluindoCliente(false);
+  };
+
   const filtrados = clientes.filter(
     (c) =>
       c.nome.toLowerCase().includes(busca.toLowerCase()) ||
@@ -245,13 +381,18 @@ export function ClientesPage() {
     setErros({});
     try {
       const fotoLeve = await comprimirFoto(file);
-      set("fotoEquipamento", fotoLeve);
+      set(fotoAlvoRef.current, fotoLeve);
     } catch {
       setErros({ foto: "Não foi possível processar esta foto. Tente escolher outra imagem." });
     } finally {
       setFotoProcessando(false);
       e.target.value = "";
     }
+  };
+
+  const selecionarFoto = (alvo: "fotoEquipamento" | "fotoAntes" | "fotoDepois") => {
+    fotoAlvoRef.current = alvo;
+    fotoRef.current?.click();
   };
 
   const selecionarMarca = (marca: string) => {
@@ -279,46 +420,52 @@ export function ClientesPage() {
     const marcaFinal = form.marcaSelect === "Outra" || !form.marcaSelect ? form.marcaDigitada : form.marcaSelect;
     const modeloFinal = form.modeloSelect === "Outro" || !form.modeloSelect ? form.modeloDigitado : form.modeloSelect;
 
-    const novo: ClienteCompleto = {
-      id: Date.now(),
-      codigo: gerarCodigo(clientes),
+    const clienteExistente = clienteEditandoId === null
+      ? undefined
+      : clientes.find((cliente) => cliente.id === clienteEditandoId);
+    const osAnterior = clienteExistente?.os;
+    const clienteSalvo: ClienteCompleto = {
+      id: clienteExistente?.id ?? Date.now(),
+      codigo: clienteExistente?.codigo ?? gerarCodigo(clientes),
       nome: form.nome.trim() || "Cliente Sem Nome",
       telefone: form.telefone.trim() || "Sem telefone",
       email: form.email.trim(),
       cidade: form.cidade.trim(),
       estado: form.estado,
       ddd: form.ddd,
-      equipamentos: 1,
-      status: "Ativo",
+      equipamentos: clienteExistente?.equipamentos || 1,
+      status: form.statusCliente,
       os: {
         linha: linhaFinal.trim(),
-        numero: gerarOS(clientes),
+        numero: osAnterior?.numero || gerarOS(clientes),
         tipoAparel: form.tipoAparel,
         marca: marcaFinal.trim() || "Não informada",
         modelo: modeloFinal.trim() || "Não informado",
-        serial: "", // Removido IMEI
+        serial: form.serial.trim(), // Mantido para permitir a ediÃ§Ã£o completa.
         fotoEquipamento: form.fotoEquipamento,
         // A tela usa fotoEquipamento como fallback; não duplicamos a imagem.
-        fotoAntes: "",
-        fotoDepois: "",
+        fotoAntes: form.fotoAntes,
+        fotoDepois: form.fotoDepois,
         defeito: form.defeito.trim() || "Não relatado",
         servico: form.servico.trim() || "Análise",
         tecnico: form.tecnico,
         statusOS: form.statusOS,
         dataEntrada: form.dataEntrada,
         dataRetirada: form.dataRetirada,
-        publicToken: gerarTokenOS(),
-        aprovacaoOrcamento: "pendente",
-        assinaturaEntrega: "",
-        assinaturaEm: "",
+        publicToken: osAnterior?.publicToken || gerarTokenOS(),
+        aprovacaoOrcamento: form.aprovacaoOrcamento as "pendente" | "aprovado" | "recusado",
+        assinaturaEntrega: osAnterior?.assinaturaEntrega || "",
+        assinaturaEm: osAnterior?.assinaturaEm || "",
         valor: form.valor.trim() || "A orçar",
       },
     };
-    const atualizado = [novo, ...clientes];
+    const atualizado = clienteExistente
+      ? clientes.map((cliente) => cliente.id === clienteExistente.id ? clienteSalvo : cliente)
+      : [clienteSalvo, ...clientes];
     salvarClientesLocal(atualizado);
     setClientes(atualizado);
-    void salvarClienteFirebase(novo).then((salvo) => {
-      if (!salvo) marcarClienteLocalPendente(novo);
+    void salvarClienteFirebase(clienteSalvo).then((salvo) => {
+      if (!salvo) marcarClienteLocalPendente(clienteSalvo);
     });
     fechar();
   };
@@ -326,6 +473,7 @@ export function ClientesPage() {
   const fechar = () => {
     setAbrirModal(false);
     setMarcaAberta(false);
+    setClienteEditandoId(null);
     setStep(1);
     setForm({ ...formVazio(), telefone: '+55 ' });
     setErros({});
@@ -374,7 +522,7 @@ export function ClientesPage() {
             <p className="text-sm text-muted-foreground">Gerencie os clientes cadastrados na assistência.</p>
           </div>
           <button
-            onClick={() => setAbrirModal(true)}
+            onClick={abrirNovoCliente}
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 shadow-sm"
           >
             <Plus className="h-4 w-4" />
@@ -542,6 +690,26 @@ export function ClientesPage() {
                         <StatusBadge status={c.status} />
                       </div>
                     )}
+                    <div className="mt-1 flex w-full items-center justify-start gap-2 lg:justify-end">
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); abrirEdicao(c); }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:border-primary hover:bg-primary/10 hover:text-primary"
+                        title={`Editar ${c.nome}`}
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); pedirExclusao(c); }}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10"
+                        title={`Excluir ${c.nome}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Excluir
+                      </button>
+                    </div>
                   </div>
 
                 </div>
@@ -563,7 +731,7 @@ export function ClientesPage() {
 
       {/* ── Modal 3 passos ── */}
       {abrirModal && (
-        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={fechar} />
 
           <div className="modal-panel relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl flex flex-col max-h-[92vh]">
@@ -571,7 +739,7 @@ export function ClientesPage() {
             {/* Cabeçalho */}
             <div className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">
               <div>
-                <h3 className="text-lg font-bold text-foreground">Novo Cliente + OS</h3>
+                <h3 className="text-lg font-bold text-foreground">{clienteEditandoId !== null ? "Editar Cliente + OS" : "Novo Cliente + OS"}</h3>
                 <p className="text-xs text-muted-foreground">
                   Passo {step} de {steps.length}: <span className="font-semibold text-primary">{steps[step - 1]}</span>
                 </p>
@@ -693,6 +861,13 @@ export function ClientesPage() {
                       <input type="text" value={form.cidade} onChange={(e) => set("cidade", e.target.value)}
                         placeholder="Digite a cidade (opcional)" className={inputCls()} />
                     </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status do cliente</label>
+                      <select value={form.statusCliente} onChange={(e) => set("statusCliente", e.target.value)} className={inputCls()}>
+                        <option value="Ativo">Ativo</option>
+                        <option value="Inativo">Inativo</option>
+                      </select>
+                    </div>
                   </>
                 )}
 
@@ -707,7 +882,7 @@ export function ClientesPage() {
                     {/* Foto */}
                     <div className="flex flex-col items-center gap-2">
                       <div
-                        onClick={() => fotoRef.current?.click()}
+                        onClick={() => selecionarFoto("fotoEquipamento")}
                         className="relative flex h-32 w-full max-w-xs cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-input bg-muted hover:border-primary hover:bg-accent transition-colors"
                       >
                         {form.fotoEquipamento ? (
@@ -719,7 +894,7 @@ export function ClientesPage() {
                           </div>
                         )}
                       </div>
-                      <button type="button" onClick={() => fotoRef.current?.click()}
+                      <button type="button" onClick={() => selecionarFoto("fotoEquipamento")}
                         disabled={fotoProcessando}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">
                         <Upload className="h-3.5 w-3.5" />
@@ -727,6 +902,19 @@ export function ClientesPage() {
                       </button>
                       <input ref={fotoRef} type="file" accept="image/*,.jpn,.jpg,.jpeg,.png,.webp,.gif,.avif,.heic,.heif,.webm" className="hidden" onChange={handleFoto} />
                       {erros.foto && <p className="text-center text-xs text-destructive">{erros.foto}</p>}
+                      <div className="grid w-full max-w-xs grid-cols-2 gap-2">
+                        <button type="button" onClick={() => selecionarFoto("fotoAntes")} className="flex h-20 items-center justify-center overflow-hidden rounded-lg border border-input bg-background text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-accent">
+                          {form.fotoAntes ? <img src={form.fotoAntes} alt="Foto antes" className="h-full w-full object-cover" /> : "Adicionar foto antes"}
+                        </button>
+                        <button type="button" onClick={() => selecionarFoto("fotoDepois")} className="flex h-20 items-center justify-center overflow-hidden rounded-lg border border-input bg-background text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-accent">
+                          {form.fotoDepois ? <img src={form.fotoDepois} alt="Foto depois" className="h-full w-full object-cover" /> : "Adicionar foto depois"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">NÃºmero de sÃ©rie / IMEI</label>
+                      <input type="text" value={form.serial} onChange={(e) => set("serial", e.target.value)} placeholder="Opcional" className={inputCls()} />
                     </div>
 
                     <div>
@@ -908,6 +1096,15 @@ export function ClientesPage() {
                       </div>
                     </div>
 
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aprovação do orçamento</label>
+                      <select value={form.aprovacaoOrcamento} onChange={(e) => set("aprovacaoOrcamento", e.target.value)} className={inputCls()}>
+                        <option value="pendente">Aguardando resposta</option>
+                        <option value="aprovado">Aprovado</option>
+                        <option value="recusado">Recusado</option>
+                      </select>
+                    </div>
+
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
                         <label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -988,12 +1185,54 @@ export function ClientesPage() {
                     type="submit"
                     className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors shadow-sm"
                   >
-                    <Plus className="h-4 w-4" />
-                    Cadastrar
+                    {clienteEditandoId !== null ? <Edit2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                    {clienteEditandoId !== null ? "Salvar alterações" : "Cadastrar"}
                   </button>
                 )}
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {clienteParaExcluir && (
+        <div className="modal-backdrop fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => { if (!excluindoCliente) setClienteParaExcluir(null); }}
+          />
+          <div className="modal-panel relative z-10 w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">Excluir cliente?</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Isso removerÃ¡ <span className="font-semibold text-foreground">{clienteParaExcluir.nome}</span> e a OS vinculada de todos os dispositivos.
+                </p>
+              </div>
+            </div>
+            {erroExclusao && <p className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{erroExclusao}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={excluindoCliente}
+                onClick={() => setClienteParaExcluir(null)}
+                className="rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={excluindoCliente}
+                onClick={() => void confirmarExclusao()}
+                className="inline-flex items-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:cursor-wait disabled:opacity-60"
+              >
+                <Trash2 className="h-4 w-4" />
+                {excluindoCliente ? "Excluindo..." : "Excluir cliente"}
+              </button>
+            </div>
           </div>
         </div>
       )}
