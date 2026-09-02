@@ -10,6 +10,7 @@ import { salvarClientesLocal } from "@/lib/localDados";
 import { excluirClienteFirebase, marcarClienteLocalPendente, salvarClienteFirebase } from "@/lib/firebaseSync";
 import { gerarTokenOS } from "@/lib/osPublica";
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 import { CATALOGO_POR_TIPO, MARCAS_COMPLETAS_POR_TIPO } from '@/lib/catalogoEquipamentos';
 import { comprimirFoto, MAX_TAMANHO_FOTO_BYTES } from "@/lib/fotos";
@@ -1195,7 +1196,7 @@ export function ClientesPage() {
         </div>
       )}
 
-      {clienteParaExcluir && (
+      {clienteParaExcluir && typeof document !== "undefined" && createPortal(
         <div className="modal-backdrop fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto overscroll-contain p-4">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -1234,7 +1235,8 @@ export function ClientesPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </Layout>
   );
