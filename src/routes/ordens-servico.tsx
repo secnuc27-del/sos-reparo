@@ -266,9 +266,11 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
     
     window.addEventListener("storage", onStorageChange);
     window.addEventListener("focus", onStorageChange);
+    window.addEventListener("sos-firebase-update", onStorageChange);
     return () => {
       window.removeEventListener("storage", onStorageChange);
       window.removeEventListener("focus", onStorageChange);
+      window.removeEventListener("sos-firebase-update", onStorageChange);
     };
   }, []);
 
@@ -573,8 +575,8 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
 
       {qrOs && typeof document !== "undefined" && createPortal(
         (
-        <div className="qr-print-overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-          <div className="qr-print-card w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+        <div className="modal-backdrop qr-print-overlay fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="modal-panel qr-print-card w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-primary">Acompanhamento pelo celular</p>

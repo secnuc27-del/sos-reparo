@@ -2,6 +2,7 @@ import { Layout } from "@/components/Layout";
 import { Search, Smartphone, Laptop, Monitor, Printer, Tablet, Gamepad2, Edit2, X, Camera, Upload, PenLine } from "lucide-react";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { salvarClientesLocal } from "@/lib/localDados";
+import { salvarClienteFirebase, salvarEdicoesFirebase } from "@/lib/firebaseSync";
 import { SignatureCanvas } from "@/components/SignatureCanvas";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica } from "@/lib/osPublica";
 import { comprimirFoto } from "@/lib/fotos";
@@ -69,9 +70,11 @@ export function EquipamentosPage() {
     // Recarrega quando o usuário volta pra esta aba/página
     window.addEventListener("focus", carregar);
     window.addEventListener("storage", carregar);
+    window.addEventListener("sos-firebase-update", carregar);
     return () => {
       window.removeEventListener("focus", carregar);
       window.removeEventListener("storage", carregar);
+      window.removeEventListener("sos-firebase-update", carregar);
     };
   }, []);
 
@@ -115,6 +118,8 @@ export function EquipamentosPage() {
             return c;
           });
           salvarClientesLocal(novos);
+          const clienteAtualizado = novos.find((cliente: any) => cliente.id === editando.clientId);
+          if (clienteAtualizado) void salvarClienteFirebase(clienteAtualizado);
         }
       } catch {}
     } else {
@@ -140,6 +145,7 @@ export function EquipamentosPage() {
           }
         };
         localStorage.setItem("sos_eq_static_edits", JSON.stringify(novosEdits));
+        void salvarEdicoesFirebase(novosEdits);
         void salvarOSPublica(criarRegistroOSPublica({
           ...editando,
           publicToken: tokenOSPublica(editando.numeroOS || editando.id),
@@ -364,8 +370,8 @@ export function EquipamentosPage() {
 
       {/* Modal de edição */}
       {editando && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-lg flex flex-col max-h-[90vh] overflow-y-auto">
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="modal-panel w-full max-w-md rounded-xl border border-border bg-card shadow-lg flex flex-col max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border px-5 py-4 sticky top-0 bg-card z-10">
               <div>
                 <h3 className="font-semibold text-foreground">Editar Equipamento / OS</h3>

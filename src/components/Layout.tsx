@@ -62,9 +62,10 @@ export function Layout({ children }: { children?: ReactNode }) {
                 key={item.to}
                 to={item.to}
                 onClick={() => setMenuAberto(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                data-active={active}
+                className={`nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-300 ease-out ${
                   active
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    ? "text-sidebar-accent-foreground shadow-sm"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/60"
                 }`}
               >
@@ -143,7 +144,7 @@ export function Layout({ children }: { children?: ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="min-w-0 flex-1 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">{children ?? <Outlet />}</main>
+        <main key={pathname} className="page-transition min-w-0 flex-1 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">{children ?? <Outlet />}</main>
       </div>
     </div>
   );

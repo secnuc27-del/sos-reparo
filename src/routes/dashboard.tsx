@@ -20,9 +20,22 @@ export function DashboardPage() {
   });
   const [periodo, setPeriodo] = useState<"todos" | "dia" | "semana" | "mes">("todos");
   const [dataReferencia, setDataReferencia] = useState("");
+  const [versaoDados, setVersaoDados] = useState(0);
 
   const [graficoStatus, setGraficoStatus] = useState<any[]>([]);
   const [graficoDefeitos, setGraficoDefeitos] = useState<any[]>([]);
+
+  useEffect(() => {
+    const atualizarDados = () => setVersaoDados((versao) => versao + 1);
+    window.addEventListener("sos-firebase-update", atualizarDados);
+    window.addEventListener("storage", atualizarDados);
+    window.addEventListener("focus", atualizarDados);
+    return () => {
+      window.removeEventListener("sos-firebase-update", atualizarDados);
+      window.removeEventListener("storage", atualizarDados);
+      window.removeEventListener("focus", atualizarDados);
+    };
+  }, []);
 
   useEffect(() => {
     let ordensLocais: any[] = [];
@@ -144,7 +157,7 @@ export function DashboardPage() {
     
     setGraficoDefeitos(topTipos);
 
-  }, [periodo, dataReferencia]);
+  }, [periodo, dataReferencia, versaoDados]);
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val);

@@ -69,9 +69,11 @@ export function HistoricoPage() {
     carregar();
     window.addEventListener("focus", carregar);
     window.addEventListener("storage", carregar);
+    window.addEventListener("sos-firebase-update", carregar);
     return () => {
       window.removeEventListener("focus", carregar);
       window.removeEventListener("storage", carregar);
+      window.removeEventListener("sos-firebase-update", carregar);
     };
   }, []);
 

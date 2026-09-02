@@ -67,14 +67,6 @@ function gravarLocal(key: string, value: unknown) {
     // Fotos podem ocupar toda a cota do navegador. Mantemos os dados da OS
     // e removemos apenas as imagens da cópia local; o Firebase continua com
     // o registro completo e compartilhado entre os dispositivos.
-    if (key === CLIENTES_STORAGE_KEY && Array.isArray(value)) {
-      try {
-        localStorage.setItem(key, JSON.stringify(compactarClientesParaCache(value, true)));
-        return true;
-      } catch {
-        return false;
-      }
-    }
     return false;
   }
 }
@@ -165,6 +157,12 @@ function adicionarPendentes(clientesBase: unknown[], pendentes: unknown[]) {
   ];
 }
 
+function adicionarLocaisNaoRemotos(clientesRemotos: unknown[], clientesLocais: unknown[]) {
+  const chavesRemotas = new Set(clientesRemotos.map(chaveCliente));
+  const locaisNovos = clientesLocais.filter((cliente) => !chavesRemotas.has(chaveCliente(cliente)));
+  return [...clientesRemotos, ...locaisNovos];
+}
+
 function pendentesQueNaoVieram(clientesRemotos: unknown[], pendentes: unknown[]) {
   const chavesRemotas = new Set(clientesRemotos.map(chaveCliente));
   return pendentes.filter((pendente) => !chavesRemotas.has(chavePendente(pendente)));
@@ -198,9 +196,14 @@ async function prepararDadosIniciais(): Promise<unknown[]> {
 
   if (clientesSnapshot.exists()) {
     const clientesRemotos = normalizarArray(clientesSnapshot.val());
+    const clientesLocais = lerLocal<unknown[]>(CLIENTES_STORAGE_KEY) ?? [];
     const pendentes = pendentesQueNaoVieram(clientesRemotos, clientesPendentes);
-    clientesParaUsar = adicionarPendentes(clientesRemotos, pendentes);
+    const baseComPendentes = adicionarPendentes(clientesRemotos, pendentes);
+    clientesParaUsar = adicionarLocaisNaoRemotos(baseComPendentes, clientesLocais);
     gravarLocal(CLIENTES_STORAGE_KEY, clientesParaUsar);
+    if (clientesParaUsar.length > clientesRemotos.length) {
+      await set(clientesRef, clientesParaUsar);
+    }
     if (pendentes.length === 0 && clientesPendentes.length > 0) limparClientesPendentes();
     else if (pendentes.length > 0) gravarClientesPendentes(pendentes);
   } else {
@@ -216,7 +219,12 @@ async function prepararDadosIniciais(): Promise<unknown[]> {
     "Firebase demorou demais para responder às edições.",
   );
   if (edicoesSnapshot.exists()) {
-    gravarLocal(EDICOES_STORAGE_KEY, edicoesSnapshot.val());
+    const edicoesRemotas = edicoesSnapshot.val() as Record<string, unknown>;
+    const edicoesLocais = lerLocal<Record<string, unknown>>(EDICOES_STORAGE_KEY) ?? {};
+    const edicoesMescladas = { ...edicoesLocais, ...edicoesRemotas };
+    gravarLocal(EDICOES_STORAGE_KEY, edicoesMescladas);
+    const existemEdicoesLocaisNovas = Object.keys(edicoesLocais).some((chave) => !(chave in edicoesRemotas));
+    if (existemEdicoesLocaisNovas) await set(edicoesRef, edicoesMescladas);
   } else {
     const edicoesLocais = lerLocal<Record<string, unknown>>(EDICOES_STORAGE_KEY);
     if (edicoesLocais) await set(edicoesRef, edicoesLocais);

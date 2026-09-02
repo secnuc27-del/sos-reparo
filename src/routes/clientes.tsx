@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { clientes as clientesIniciais } from "@/lib/dados";
 import { salvarClientesLocal } from "@/lib/localDados";
+import { marcarClienteLocalPendente, salvarClienteFirebase } from "@/lib/firebaseSync";
 import { gerarTokenOS } from "@/lib/osPublica";
 import { useState, useRef, useEffect } from "react";
 
@@ -191,6 +192,24 @@ export function ClientesPage() {
   }, [clientes]);
 
   useEffect(() => {
+    const atualizarClientes = () => {
+      try {
+        const salvo = localStorage.getItem(STORAGE_KEY);
+        if (salvo) setClientes(JSON.parse(salvo));
+      } catch {}
+    };
+
+    window.addEventListener("sos-firebase-update", atualizarClientes);
+    window.addEventListener("storage", atualizarClientes);
+    window.addEventListener("focus", atualizarClientes);
+    return () => {
+      window.removeEventListener("sos-firebase-update", atualizarClientes);
+      window.removeEventListener("storage", atualizarClientes);
+      window.removeEventListener("focus", atualizarClientes);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!marcaAberta) return;
     const fecharAoClicarFora = (event: MouseEvent) => {
       if (!marcaMenuRef.current?.contains(event.target as Node)) {
@@ -298,6 +317,9 @@ export function ClientesPage() {
     const atualizado = [novo, ...clientes];
     salvarClientesLocal(atualizado);
     setClientes(atualizado);
+    void salvarClienteFirebase(novo).then((salvo) => {
+      if (!salvo) marcarClienteLocalPendente(novo);
+    });
     fechar();
   };
 
@@ -541,10 +563,10 @@ export function ClientesPage() {
 
       {/* ── Modal 3 passos ── */}
       {abrirModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={fechar} />
 
-          <div className="relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl flex flex-col max-h-[92vh]">
+          <div className="modal-panel relative z-10 w-full max-w-lg rounded-2xl border border-border bg-card shadow-2xl flex flex-col max-h-[92vh]">
 
             {/* Cabeçalho */}
             <div className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">
