@@ -145,6 +145,7 @@ export const CATALOGO_POR_TIPO: Record<string, CatalogoModelos> = {
       XPS: ['XPS 13', 'XPS 13 Plus', 'XPS 15', 'XPS 17'],
       G: ['G15', 'G16'],
       Alienware: ['m16', 'm18', 'x16'],
+      Legacy: ['Inspiron 14 3000', 'Inspiron 15 3000', 'Inspiron 15 5000', 'Inspiron 15 7000', 'Inspiron 1545', 'Inspiron N4050', 'Inspiron N5010', 'Inspiron N5110', 'Latitude E5430', 'Latitude E6440', 'Latitude E7440', 'Vostro 3450', 'Vostro 3550', 'XPS 13 9360', 'XPS 15 9560'],
     },
     HP: {
       Pavilion: ['Pavilion 14', 'Pavilion 15', 'Pavilion x360'],
@@ -154,6 +155,7 @@ export const CATALOGO_POR_TIPO: Record<string, CatalogoModelos> = {
       EliteBook: ['EliteBook 840 G9', 'EliteBook 840 G10', 'EliteBook 860 G10'],
       Victus: ['Victus 15', 'Victus 16'],
       Omen: ['Omen 16', 'Omen 17'],
+      Legacy: ['Compaq Presario CQ40', 'Compaq Presario CQ43', 'Compaq Presario CQ50', 'HP G42', 'HP G42-371BR', 'HP G6', 'HP G7', 'Pavilion dv4', 'Pavilion dv5', 'Pavilion dv6', 'Pavilion dm1', 'Pavilion 14 2015', 'Pavilion 15 2016'],
     },
     Lenovo: {
       IdeaPad: ['IdeaPad 1', 'IdeaPad 3', 'IdeaPad 5', 'IdeaPad Slim 3', 'IdeaPad Slim 5'],
@@ -161,12 +163,14 @@ export const CATALOGO_POR_TIPO: Record<string, CatalogoModelos> = {
       Yoga: ['Yoga Slim 6', 'Yoga Slim 7', 'Yoga 7i', 'Yoga Pro 7'],
       Legion: ['Legion 5', 'Legion 5 Pro', 'Legion 7', 'Legion Slim 5'],
       LOQ: ['LOQ 15', 'LOQ 16'],
+      Legacy: ['G40-70', 'G50-80', 'IdeaPad 110', 'IdeaPad 310', 'IdeaPad 320', 'IdeaPad 330', 'IdeaPad S145', 'ThinkPad T430', 'ThinkPad T440', 'ThinkPad T450', 'ThinkPad T460', 'ThinkPad X230', 'ThinkPad X240', 'Yoga 500', 'Yoga 510'],
     },
     Acer: {
       Aspire: ['Aspire 3', 'Aspire 5', 'Aspire 7'],
       Swift: ['Swift 3', 'Swift Go 14', 'Swift Go 16', 'Swift X'],
       Nitro: ['Nitro 5', 'Nitro V 15', 'Nitro V 16'],
       Predator: ['Predator Helios 16', 'Predator Helios 18', 'Predator Triton 14'],
+      Legacy: ['Aspire One D255', 'Aspire One 722', 'Aspire 3 2015', 'Aspire 5 2017', 'Aspire E1-571', 'Aspire E5-571', 'Extensa 15', 'TravelMate P2', 'Nitro 5 AN515-51', 'Predator Helios 300 PH315'],
     },
     Asus: {
       VivoBook: ['VivoBook 15', 'VivoBook 16', 'VivoBook Go 15', 'VivoBook Pro 15'],
@@ -174,15 +178,19 @@ export const CATALOGO_POR_TIPO: Record<string, CatalogoModelos> = {
       TUF: ['TUF Gaming F15', 'TUF Gaming F16', 'TUF Gaming A15', 'TUF Gaming A16'],
       ROG: ['ROG Strix G16', 'ROG Strix G18', 'ROG Zephyrus G14', 'ROG Zephyrus G16'],
       ExpertBook: ['ExpertBook B1', 'ExpertBook B5'],
+      Legacy: ['Eee PC 1005HA', 'Eee PC 1215N', 'X451CA', 'X550C', 'X555L', 'K43E', 'K55A', 'N56V', 'VivoBook X510', 'ZenBook UX305', 'ZenBook UX430', 'TUF Gaming FX504'],
     },
     Apple: {
       MacBook: ['MacBook Air M1', 'MacBook Air M2', 'MacBook Air M3', 'MacBook Air M4', 'MacBook Air M5', 'MacBook Pro M1', 'MacBook Pro M2', 'MacBook Pro M3', 'MacBook Pro M4', 'MacBook Pro M5'],
+      Intel: ['MacBook Air 2011', 'MacBook Air 2012', 'MacBook Air 2013', 'MacBook Air 2015', 'MacBook Air 2017', 'MacBook 12 2015', 'MacBook 12 2016', 'MacBook Pro 2012', 'MacBook Pro 2013', 'MacBook Pro 2015', 'MacBook Pro 2017', 'MacBook Pro 2019', 'MacBook Pro 2020 Intel'],
     },
     Samsung: {
       GalaxyBook: ['Galaxy Book2', 'Galaxy Book3', 'Galaxy Book4', 'Galaxy Book4 Edge', 'Galaxy Book5'],
+      Legacy: ['Samsung RV415', 'Samsung RV511', 'Samsung NP300E4', 'Samsung NP350V5', 'Samsung Expert X40', 'Galaxy Book 2017', 'Galaxy Book S'],
     },
     LG: {
       Gram: ['LG Gram 14', 'LG Gram 15', 'LG Gram 16', 'LG Gram 17'],
+      Legacy: ['LG A410', 'LG S425', 'LG U460', 'LG Ultra PC 15'],
     },
     Vaio: {
       FE: ['Vaio FE14', 'Vaio FE15'],
@@ -198,6 +206,20 @@ export const CATALOGO_POR_TIPO: Record<string, CatalogoModelos> = {
       A: ['A52', 'A57', 'A70'],
       Storm: ['Storm 450', 'Storm 550', 'Storm 600'],
     },
+    Toshiba: {
+      Satellite: ['Satellite L305', 'Satellite L455', 'Satellite L755', 'Satellite C50', 'Satellite C55', 'Satellite A665'],
+      Tecra: ['Tecra A50', 'Tecra Z40'],
+    },
+    MSI: {
+      Classic: ['CR400', 'CX61', 'GE60', 'GP60'],
+      Gaming: ['GL62', 'GL63', 'GF63', 'Katana 15', 'Raider GE68'],
+    },
+    Compaq: {
+      Presario: ['Presario CQ40', 'Presario CQ42', 'Presario CQ43', 'Presario CQ56', 'Presario CQ57'],
+    },
+    CCE: {
+      Win: ['Win E35B', 'Win T35B', 'Win Ultra Thin'],
+    },
   },
   Desktop: {
     Dell: {
@@ -205,24 +227,40 @@ export const CATALOGO_POR_TIPO: Record<string, CatalogoModelos> = {
       Inspiron: ['Inspiron 3910', 'Inspiron 3020'],
       XPS: ['XPS Desktop 8950', 'XPS Desktop 8960'],
       Alienware: ['Aurora R13', 'Aurora R15', 'Aurora R16'],
+      Legacy: ['OptiPlex 3020', 'OptiPlex 3010', 'OptiPlex 7010', 'OptiPlex 9020', 'OptiPlex 990', 'Inspiron 3647', 'Inspiron 3650', 'XPS 8900', 'Alienware Aurora R7'],
     },
     HP: {
       ProDesk: ['ProDesk 400 G6', 'ProDesk 400 G7', 'ProDesk 600 G6'],
       EliteDesk: ['EliteDesk 800 G6', 'EliteDesk 800 G8'],
       Pavilion: ['Pavilion Desktop TP01', 'Pavilion Gaming TG01'],
       Omen: ['Omen 25L', 'Omen 40L', 'Omen 45L'],
+      Legacy: ['HP Compaq 6005 Pro', 'HP Compaq 6200 Pro', 'HP Compaq 8200 Elite', 'ProDesk 400 G2', 'ProDesk 600 G2', 'EliteDesk 800 G2', 'Pavilion HPE h8'],
     },
     Lenovo: {
       ThinkCentre: ['ThinkCentre M70q', 'ThinkCentre M75q', 'ThinkCentre M90q'],
       IdeaCentre: ['IdeaCentre 3', 'IdeaCentre 5', 'IdeaCentre Gaming 5'],
       Legion: ['Legion Tower 5', 'Legion Tower 7'],
+      Legacy: ['ThinkCentre M58', 'ThinkCentre M72e', 'ThinkCentre M83', 'ThinkCentre M93p', 'IdeaCentre H50', 'IdeaCentre 510'],
     },
     Apple: {
       Mac: ['iMac 24 M1', 'iMac 24 M3', 'iMac 24 M4', 'Mac mini M2', 'Mac mini M4', 'Mac Studio M2', 'Mac Studio M3'],
+      Intel: ['iMac 21,5 2012', 'iMac 21,5 2013', 'iMac 21,5 2015', 'iMac 27 2013', 'iMac 27 2015', 'Mac mini 2012', 'Mac mini 2014', 'Mac Pro 2013', 'Mac Pro 2019'],
     },
     Positivo: {
       Master: ['Master D3400', 'Master D6100', 'Master C6300'],
       Union: ['Union'],
+      Legacy: ['Master D1000', 'Master D2200', 'Master D2500', 'Master N2500', 'Union C1260'],
+    },
+    Acer: {
+      Veriton: ['Veriton X2631', 'Veriton X2660', 'Veriton M2631'],
+      Aspire: ['Aspire TC-605', 'Aspire TC-780', 'Aspire XC-704', 'Aspire XC-885'],
+    },
+    Asus: {
+      VivoPC: ['VivoPC VM40B', 'VivoPC K20CD', 'VivoPC X'],
+      ROG: ['ROG G20', 'ROG G22', 'ROG Strix G15'],
+    },
+    Intel: {
+      NUC: ['NUC 5', 'NUC 6', 'NUC 7', 'NUC 8', 'NUC 10', 'NUC 11'],
     },
     'Montado (Custom/Gamer)': {
       'Computador montado': ['PC Gamer de entrada', 'PC Gamer intermediário', 'PC Gamer avançado', 'Workstation', 'Servidor'],
@@ -230,50 +268,62 @@ export const CATALOGO_POR_TIPO: Record<string, CatalogoModelos> = {
   },
   Tablet: {
     Apple: {
+      Legacy: ['iPad (1ª geração)', 'iPad 2', 'iPad 3', 'iPad 4', 'iPad 5ª geração', 'iPad 6ª geração', 'iPad Air', 'iPad Air 2', 'iPad Air 3', 'iPad mini', 'iPad mini 2', 'iPad mini 3', 'iPad mini 4', 'iPad mini 5', 'iPad Pro 9,7', 'iPad Pro 10,5', 'iPad Pro 12,9 1ª geração'],
       iPad: ['iPad 7ª Geração', 'iPad 8ª Geração', 'iPad 9ª Geração', 'iPad 10ª Geração', 'iPad A16', 'iPad Air 4', 'iPad Air 5', 'iPad Air 6', 'iPad Air M3', 'iPad mini 6', 'iPad mini 7', 'iPad Pro 11', 'iPad Pro 12,9', 'iPad Pro M4', 'iPad Pro M5'],
     },
     'Apple (iPad)': {
+      Legacy: ['iPad (1ª geração)', 'iPad 2', 'iPad 3', 'iPad 4', 'iPad 5ª geração', 'iPad 6ª geração', 'iPad Air', 'iPad Air 2', 'iPad Air 3', 'iPad mini', 'iPad mini 2', 'iPad mini 3', 'iPad mini 4', 'iPad mini 5', 'iPad Pro 9,7', 'iPad Pro 10,5', 'iPad Pro 12,9 1ª geração'],
       iPad: ['iPad 7ª Geração', 'iPad 8ª Geração', 'iPad 9ª Geração', 'iPad 10ª Geração', 'iPad Air 5', 'iPad Air 6', 'iPad mini 6', 'iPad mini 7', 'iPad Pro 11', 'iPad Pro 12,9', 'iPad Pro M4', 'iPad Pro M5'],
     },
     Samsung: {
-      GalaxyTab: ['Galaxy Tab A7', 'Galaxy Tab A8', 'Galaxy Tab A9', 'Galaxy Tab A9+', 'Galaxy Tab S6 Lite', 'Galaxy Tab S7 FE', 'Galaxy Tab S8', 'Galaxy Tab S9', 'Galaxy Tab S9 FE', 'Galaxy Tab S10', 'Galaxy Tab S10 FE', 'Galaxy Tab S11'],
+      GalaxyTab: ['Galaxy Tab 2', 'Galaxy Tab 3', 'Galaxy Tab 4', 'Galaxy Tab A 2016', 'Galaxy Tab A 2017', 'Galaxy Tab A7', 'Galaxy Tab A8', 'Galaxy Tab A9', 'Galaxy Tab A9+', 'Galaxy Tab S2', 'Galaxy Tab S3', 'Galaxy Tab S4', 'Galaxy Tab S5e', 'Galaxy Tab S6', 'Galaxy Tab S6 Lite', 'Galaxy Tab S7', 'Galaxy Tab S7 FE', 'Galaxy Tab S8', 'Galaxy Tab S9', 'Galaxy Tab S9 FE', 'Galaxy Tab S10', 'Galaxy Tab S10 FE', 'Galaxy Tab S11'],
     },
     Lenovo: {
-      Tab: ['Tab M10', 'Tab M11', 'Tab P11', 'Tab P12', 'Tab P12 Pro', 'Legion Tab'],
+      Tab: ['Tab 2 A7', 'Tab 3 7', 'Tab 4 8', 'Tab M8', 'Tab M9', 'Tab M10', 'Tab M11', 'Tab P10', 'Tab P11', 'Tab P12', 'Tab P12 Pro', 'Legion Tab'],
     },
     Xiaomi: {
-      Pad: ['Xiaomi Pad 5', 'Xiaomi Pad 6', 'Xiaomi Pad 6S Pro', 'Xiaomi Pad 7', 'Xiaomi Pad 7 Pro'],
+      Pad: ['Mi Pad', 'Mi Pad 2', 'Mi Pad 3', 'Mi Pad 4', 'Xiaomi Pad 5', 'Xiaomi Pad 6', 'Xiaomi Pad 6S Pro', 'Xiaomi Pad 7', 'Xiaomi Pad 7 Pro'],
       Redmi: ['Redmi Pad', 'Redmi Pad SE', 'Redmi Pad 2'],
     },
     Multilaser: {
-      M: ['M7', 'M8', 'M10', 'M-Pro'],
+      M: ['M5', 'M7', 'M8', 'M10', 'M-Pro', 'M-Pro 2'],
     },
     Amazon: {
-      Fire: ['Fire HD 8', 'Fire HD 10', 'Fire HD 10 Plus', 'Fire Max 11'],
+      Fire: ['Fire 7', 'Fire HD 6', 'Fire HD 7', 'Fire HD 8', 'Fire HD 10', 'Fire HD 10 Plus', 'Fire Max 11'],
     },
     Huawei: {
-      MatePad: ['MatePad 10.4', 'MatePad 11', 'MatePad 11.5', 'MatePad Pro'],
+      MatePad: ['MediaPad T3', 'MediaPad T5', 'MediaPad M5 Lite', 'MatePad 10.4', 'MatePad 11', 'MatePad 11.5', 'MatePad Pro'],
     },
     Microsoft: {
       Surface: ['Surface Go 3', 'Surface Go 4', 'Surface Pro 8', 'Surface Pro 9', 'Surface Pro 10', 'Surface Pro 11'],
     },
     Positivo: {
-      Tab: ['Tab 7', 'Tab 8', 'Tab Q10'],
+      Tab: ['Ypy 7', 'Ypy 10', 'Tab 5', 'Tab 7', 'Tab 8', 'Tab Q8', 'Tab Q10'],
+    },
+    Philco: {
+      Tablet: ['PTB7RSG', 'PTB8RSG', 'PTB10RSG', 'PTB11RSG'],
+    },
+    DL: {
+      Tab: ['DL Kids', 'DL H7', 'DL H8', 'DL H10'],
     },
   },
   Console: {
     Sony: {
       PlayStation: ['PlayStation 4', 'PlayStation 4 Slim', 'PlayStation 4 Pro', 'PlayStation 5', 'PlayStation 5 Slim', 'PlayStation 5 Pro', 'PlayStation Portal'],
+      Legacy: ['PlayStation 1', 'PlayStation 2', 'PlayStation 2 Slim', 'PlayStation 3', 'PlayStation 3 Slim', 'PlayStation 3 Super Slim', 'PSP 1000', 'PSP 2000', 'PSP 3000', 'PSP Go', 'PlayStation Vita'],
     },
     PlayStation: {
       PlayStation: ['PlayStation 4', 'PlayStation 4 Slim', 'PlayStation 4 Pro', 'PlayStation 5', 'PlayStation 5 Slim', 'PlayStation 5 Pro', 'PlayStation Portal'],
+      Legacy: ['PlayStation 1', 'PlayStation 2', 'PlayStation 2 Slim', 'PlayStation 3', 'PlayStation 3 Slim', 'PlayStation 3 Super Slim', 'PSP 1000', 'PSP 2000', 'PSP 3000', 'PSP Go', 'PlayStation Vita'],
     },
     Xbox: {
-      Xbox: ['Xbox One', 'Xbox One S', 'Xbox One X', 'Xbox Series S', 'Xbox Series X'],
+      Xbox: ['Xbox', 'Xbox One', 'Xbox One S', 'Xbox One X', 'Xbox Series S', 'Xbox Series X'],
+      Legacy: ['Xbox 360', 'Xbox 360 Arcade', 'Xbox 360 Slim', 'Xbox 360 E'],
     },
     Nintendo: {
       Switch: ['Nintendo Switch', 'Nintendo Switch Lite', 'Nintendo Switch OLED', 'Nintendo Switch 2'],
       Wii: ['Wii', 'Wii U'],
+      Legacy: ['NES', 'Super Nintendo', 'Nintendo 64', 'GameCube', 'Game Boy', 'Game Boy Color', 'Game Boy Advance', 'Nintendo DS', 'Nintendo 3DS'],
     },
     Valve: {
       SteamDeck: ['Steam Deck LCD', 'Steam Deck OLED'],
@@ -281,31 +331,37 @@ export const CATALOGO_POR_TIPO: Record<string, CatalogoModelos> = {
     Asus: {
       ROGAlly: ['ROG Ally', 'ROG Ally X'],
     },
+    Sega: {
+      MegaDrive: ['Mega Drive', 'Mega Drive 2', 'Sega Saturn', 'Dreamcast'],
+    },
+    Atari: {
+      Console: ['Atari 2600', 'Atari 7800', 'Atari Flashback'],
+    },
   },
   Impressora: {
     HP: {
-      DeskJet: ['DeskJet 2774', 'DeskJet 2874', 'DeskJet Ink Advantage 2774'],
+      DeskJet: ['DeskJet 2050', 'DeskJet 2135', 'DeskJet 2546', 'DeskJet 2774', 'DeskJet 2874', 'DeskJet Ink Advantage 2774'],
       SmartTank: ['Smart Tank 517', 'Smart Tank 583', 'Smart Tank 724'],
-      OfficeJet: ['OfficeJet Pro 9010', 'OfficeJet Pro 9730'],
-      LaserJet: ['LaserJet M404', 'LaserJet M428', 'LaserJet Pro M15', 'LaserJet Pro MFP 4103'],
+      OfficeJet: ['OfficeJet 4500', 'OfficeJet 4630', 'OfficeJet Pro 9010', 'OfficeJet Pro 9730'],
+      LaserJet: ['LaserJet 1020', 'LaserJet 1102', 'LaserJet P1102', 'LaserJet M1132', 'LaserJet M404', 'LaserJet M428', 'LaserJet Pro M15', 'LaserJet Pro MFP 4103'],
     },
     Epson: {
-      EcoTank: ['EcoTank L3250', 'EcoTank L4260', 'EcoTank L5290', 'EcoTank L6270', 'EcoTank L8180'],
-      WorkForce: ['WorkForce WF-7210', 'WorkForce WF-7830'],
-      Monocromatica: ['M1120', 'M2120', 'M2170'],
+      EcoTank: ['EcoTank L110', 'EcoTank L120', 'EcoTank L220', 'EcoTank L355', 'EcoTank L365', 'EcoTank L395', 'EcoTank L3110', 'EcoTank L3150', 'EcoTank L3250', 'EcoTank L4260', 'EcoTank L5290', 'EcoTank L6270', 'EcoTank L8180'],
+      WorkForce: ['WorkForce WF-2630', 'WorkForce WF-2860', 'WorkForce WF-7210', 'WorkForce WF-7830'],
+      Monocromatica: ['M1120', 'M2120', 'M2170', 'M105', 'M205'],
     },
     Canon: {
-      Pixma: ['Pixma G3110', 'Pixma G3160', 'Pixma G6010', 'Pixma G7010'],
+      Pixma: ['Pixma MG2410', 'Pixma MG2510', 'Pixma MG3010', 'Pixma G3100', 'Pixma G3110', 'Pixma G3160', 'Pixma G6010', 'Pixma G7010'],
       Maxify: ['Maxify GX6010', 'Maxify GX7010'],
       imageCLASS: ['imageCLASS LBP6030', 'imageCLASS MF3010', 'imageCLASS MF455dw'],
     },
     Brother: {
-      HL: ['HL-1212W', 'HL-1202', 'HL-L2360DW', 'HL-L5102DW'],
-      DCP: ['DCP-1617NW', 'DCP-L2540DW', 'DCP-L5652DN'],
-      MFC: ['MFC-L2710DW', 'MFC-L3750CDW', 'MFC-L6902DW'],
+      HL: ['HL-1112', 'HL-1202', 'HL-1212W', 'HL-L2360DW', 'HL-L5102DW'],
+      DCP: ['DCP-1512', 'DCP-1617NW', 'DCP-L2540DW', 'DCP-L5652DN'],
+      MFC: ['MFC-7360N', 'MFC-7860DW', 'MFC-L2710DW', 'MFC-L3750CDW', 'MFC-L6902DW'],
     },
     Samsung: {
-      Xpress: ['Xpress M2020', 'Xpress M2070', 'Xpress C430W'],
+      Xpress: ['ML-1665', 'ML-2165', 'Xpress M2020', 'Xpress M2070', 'Xpress C430W'],
     },
     Lexmark: {
       Laser: ['MS321dn', 'MX421ade', 'MC3224dwe'],
@@ -322,6 +378,15 @@ export const CATALOGO_POR_TIPO: Record<string, CatalogoModelos> = {
     },
     Kyocera: {
       Ecosys: ['ECOSYS P2040dn', 'ECOSYS M2040dn', 'ECOSYS M2635dn'],
+    },
+    Ricoh: {
+      Laser: ['SP 210', 'SP 310', 'SP 3710', 'MP 2014', 'MP 301'],
+    },
+    Zebra: {
+      Etiquetas: ['GK420t', 'GK420d', 'ZD220', 'ZD230', 'ZQ520'],
+    },
+    Bematech: {
+      Termica: ['MP-4200 TH', 'MP-2800 TH', 'MP-5100 TH'],
     },
   },
 };
