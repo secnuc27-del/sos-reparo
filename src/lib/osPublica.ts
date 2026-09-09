@@ -154,7 +154,7 @@ export async function salvarOSPublica(registro: PublicOSRecord) {
   try {
     await set(ref(database, `${PUBLIC_PATH}/${registro.token}`), registro);
     if (tokenNorm !== registro.token) {
-      void set(ref(database, `${PUBLIC_PATH}/${tokenNorm}`), registro).catch(() => {});
+      await set(ref(database, `${PUBLIC_PATH}/${tokenNorm}`), registro);
     }
   } catch (error) {
     console.warn("Não foi possível publicar a OS no Firebase:", error);
@@ -234,15 +234,36 @@ export async function buscarOSPublica(token: string): Promise<PublicOSRecord | n
 
   // A leitura REST sem cache funciona como fallback para celulares em que
   // o SDK do Firebase fica suspenso ou bloqueado pelo navegador.
+  const registrosEncontrados: Array<{ chave: string; registro: PublicOSRecord }> = [];
   for (const chave of candidatos) {
     const registro = await buscarOSPublicaPorREST(chave);
     if (registro) {
-      const mapa = lerMapaLocal();
-      mapa[token] = registro;
-      mapa[registro.token] = registro;
-      salvarMapaLocal(mapa);
-      return registro;
+      registrosEncontrados.push({ chave, registro });
     }
+  }
+
+  // O QR Code antigo usa um token aleatório, mas a chave pelo número da OS
+  // é a referência oficial. Busca essa chave também para não exibir uma
+  // cópia antiga quando os dois registros existirem.
+  const chavesOficiais = new Set(
+    registrosEncontrados.map(({ registro }) => tokenOSPublica(registro.numero)),
+  );
+  for (const chave of chavesOficiais) {
+    if (candidatos.includes(chave) || registrosEncontrados.some((item) => item.chave === chave)) continue;
+    const registro = await buscarOSPublicaPorREST(chave);
+    if (registro) registrosEncontrados.push({ chave, registro });
+  }
+
+  if (registrosEncontrados.length > 0) {
+    const registroOficial = registrosEncontrados.find(
+      ({ chave, registro }) => chave === tokenOSPublica(registro.numero),
+    )?.registro;
+    const registro = registroOficial || registrosEncontrados[0].registro;
+    const mapa = lerMapaLocal();
+    mapa[token] = registro;
+    mapa[registro.token] = registro;
+    salvarMapaLocal(mapa);
+    return registro;
   }
 
   // 1. Tenta buscar no Firebase em tempo hábil (timeout de 2.5s)
