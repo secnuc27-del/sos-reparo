@@ -233,7 +233,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
     return finalSort;
   };
 
-  const alterarStatusOS = (os: any, novoStatus: string) => {
+  const alterarStatusOS = async (os: any, novoStatus: string) => {
     if (os.status === novoStatus) return;
 
     // Se escolheu marcar como Entregue e não tem assinatura, abre modal de assinatura
@@ -266,7 +266,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
           });
           salvarClientesLocal(novos);
           const clienteAtualizado = novos.find((c: any) => c.id === os.clienteId);
-          if (clienteAtualizado) void salvarClienteFirebase(clienteAtualizado);
+          if (clienteAtualizado) await salvarClienteFirebase(clienteAtualizado);
         }
       } catch {}
     } else {
@@ -285,7 +285,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
         edicoes[eqId] = dados;
         if (os.numero) edicoes[os.numero] = dados;
         localStorage.setItem("sos_eq_static_edits", JSON.stringify(edicoes));
-        void salvarEdicoesFirebase(edicoes);
+        await salvarEdicoesFirebase(edicoes);
       } catch {}
     }
 
@@ -298,7 +298,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
       assinaturaEm: isEntregue ? os.assinaturaEm : "",
       publicToken: token,
     }, token);
-    void salvarOSPublica(registro);
+    await salvarOSPublica(registro);
 
     // 4. Notifica todos os componentes
     window.dispatchEvent(new CustomEvent("sos-firebase-update"));
