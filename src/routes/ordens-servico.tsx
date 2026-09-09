@@ -24,7 +24,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { QRCodeSVG } from "qrcode.react";
-import { marcarChatComoLido } from "@/lib/chat";
+
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica, urlOSPublica } from "@/lib/osPublica";
 import { MarcaLogo } from "@/components/MarcaLogo";
 import { ModalAssinaturaEntrega } from "@/components/ModalAssinaturaEntrega";
@@ -397,27 +397,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
               <p className="text-[10px] font-medium text-muted-foreground tracking-wide mt-1">Prev: <span className="text-foreground">{os.previsao}</span></p>
             </div>
             <div className="flex items-center gap-1 lg:mt-2">
-              {(() => {
-                const tokenChat = tokenOSPublica(os.numero, os.publicToken);
-                const naoLidas = obterContagem(tokenChat);
-                return (
-                  <button
-                    onClick={() => {
-                      marcarChatComoLido(tokenChat, "tecnico");
-                      setChatOs(os);
-                    }}
-                    className="relative rounded-lg bg-cyan-500/10 p-2 text-cyan-500 transition-all hover:bg-cyan-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-                    title={naoLidas > 0 ? `${naoLidas} nova(s) mensagem(ns)` : "Chat com o cliente"}
-                  >
-                    <MessagesSquare className="h-4 w-4" />
-                    {naoLidas > 0 && (
-                      <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-md ring-2 ring-card animate-in zoom-in-50 duration-200">
-                        {naoLidas > 9 ? "9+" : naoLidas}
-                      </span>
-                    )}
-                  </button>
-                );
-              })()}
               <button
                 onClick={() => abrirQrCode(os)}
                 className="rounded-lg bg-primary/10 p-2 text-primary transition-all hover:bg-primary hover:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
