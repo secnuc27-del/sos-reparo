@@ -29,6 +29,7 @@ export type PublicOSRecord = {
 
 const PUBLIC_STORAGE_KEY = "sos_public_os";
 const PUBLIC_PATH = "publicOS";
+const FIREBASE_DATABASE_URL = "https://sos-reparo-12345-default-rtdb.firebaseio.com";
 
 function lerMapaLocal(): Record<string, PublicOSRecord> {
   try {
@@ -44,6 +45,26 @@ function salvarMapaLocal(mapa: Record<string, PublicOSRecord>) {
     localStorage.setItem(PUBLIC_STORAGE_KEY, JSON.stringify(mapa));
   } catch {
     // O Firebase continua sendo a fonte compartilhada quando o localStorage falhar.
+  }
+}
+
+async function buscarOSPublicaPorREST(chave: string): Promise<PublicOSRecord | null> {
+  const controlador = new AbortController();
+  const temporizador = window.setTimeout(() => controlador.abort(), 2500);
+
+  try {
+    const resposta = await fetch(
+      `${FIREBASE_DATABASE_URL}/${PUBLIC_PATH}/${encodeURIComponent(chave)}.json`,
+      { cache: "no-store", signal: controlador.signal },
+    );
+
+    if (!resposta.ok) return null;
+    const dados = await resposta.json();
+    return dados && typeof dados === "object" ? dados as PublicOSRecord : null;
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(temporizador);
   }
 }
 
@@ -166,6 +187,19 @@ function gerarChavesCandidatas(token: string): string[] {
 
 export async function buscarOSPublica(token: string): Promise<PublicOSRecord | null> {
   const candidatos = gerarChavesCandidatas(token);
+
+  // A leitura REST sem cache funciona como fallback para celulares em que
+  // o SDK do Firebase fica suspenso ou bloqueado pelo navegador.
+  for (const chave of candidatos) {
+    const registro = await buscarOSPublicaPorREST(chave);
+    if (registro) {
+      const mapa = lerMapaLocal();
+      mapa[token] = registro;
+      mapa[registro.token] = registro;
+      salvarMapaLocal(mapa);
+      return registro;
+    }
+  }
 
   // 1. Tenta buscar no Firebase em tempo hábil (timeout de 2.5s)
   for (const chave of candidatos) {
