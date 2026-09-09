@@ -370,23 +370,25 @@ export function ClientesPage() {
 
   const confirmarExclusao = async () => {
     if (!clienteParaExcluir) return;
-    setExcluindoCliente(true);
-    setErroExclusao("");
-    try {
-      const removido = await excluirClienteFirebase(clienteParaExcluir);
-      if (!removido) {
-        setErroExclusao("N\u00e3o foi poss\u00edvel excluir agora. Verifique a conex\u00e3o e tente novamente.");
-        return;
-      }
+    const alvo = clienteParaExcluir;
 
-      const atualizado = clientes.filter((cliente) => cliente.id !== clienteParaExcluir.id);
-      salvarClientesLocal(atualizado);
-      setClientes(atualizado);
-      setClienteParaExcluir(null);
-    } catch {
-      setErroExclusao("N\u00e3o foi poss\u00edvel excluir agora. Verifique a conex\u00e3o e tente novamente.");
-    } finally {
-      setExcluindoCliente(false);
+    // 1. Atualização otimista imediata: remove da tela e do cache local sem travar
+    const atualizado = clientes.filter((cliente) => cliente.id !== alvo.id);
+    salvarClientesLocal(atualizado);
+    setClientes(atualizado);
+    setClienteParaExcluir(null);
+    setExcluindoCliente(false);
+    setErroExclusao("");
+
+    // 2. Dispara eventos para atualizar outros componentes e telas
+    window.dispatchEvent(new CustomEvent("sos-firebase-update"));
+    window.dispatchEvent(new Event("storage"));
+
+    // 3. Remove no Firebase em segundo plano
+    try {
+      await excluirClienteFirebase(alvo);
+    } catch (e) {
+      console.warn("Aviso ao sincronizar exclusão com Firebase:", e);
     }
   };
 

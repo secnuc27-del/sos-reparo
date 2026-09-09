@@ -119,6 +119,53 @@ function chaveCliente(cliente: unknown) {
   return JSON.stringify(cliente);
 }
 
+const CLIENTES_EXCLUIDOS_STORAGE_KEY = "sos_clientes_excluidos";
+const mapaChavesRemotas = new Map<string, string>();
+
+function lerClientesExcluidos(): Set<string> {
+  try {
+    const salvo = localStorage.getItem(CLIENTES_EXCLUIDOS_STORAGE_KEY);
+    return salvo ? new Set(JSON.parse(salvo)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function marcarClienteExcluido(id: string | number) {
+  try {
+    const excluidos = lerClientesExcluidos();
+    excluidos.add(String(id));
+    localStorage.setItem(CLIENTES_EXCLUIDOS_STORAGE_KEY, JSON.stringify([...excluidos]));
+  } catch {}
+}
+
+function filtrarNaoExcluidos(clientes: unknown[]): unknown[] {
+  const excluidos = lerClientesExcluidos();
+  if (excluidos.size === 0) return clientes;
+  return clientes.filter((c) => {
+    if (!c || typeof c !== "object") return true;
+    const reg = c as Record<string, unknown>;
+    if (reg.id !== undefined && excluidos.has(String(reg.id))) return false;
+    if (reg.codigo !== undefined && excluidos.has(String(reg.codigo))) return false;
+    return true;
+  });
+}
+
+function registrarChavesSnapshot(valor: unknown) {
+  if (!valor || typeof valor !== 'object') return;
+  Object.entries(valor as Record<string, unknown>).forEach(([chave, cliente]) => {
+    if (cliente && typeof cliente === 'object') {
+      const reg = cliente as Record<string, unknown>;
+      if (reg.id !== undefined && reg.id !== null) {
+        mapaChavesRemotas.set('id:' + String(reg.id), chave);
+      }
+      if (reg.codigo !== undefined && reg.codigo !== null) {
+        mapaChavesRemotas.set('codigo:' + String(reg.codigo), chave);
+      }
+    }
+  });
+}
+
 function chavePendente(pendente: unknown) {
   if (pendente && typeof pendente === 'object') return chaveCliente(pendente);
   if (pendente !== undefined && pendente !== null) return 'id:' + String(pendente);
@@ -195,8 +242,11 @@ async function prepararDadosIniciais(): Promise<unknown[]> {
   let clientesParaUsar: unknown[];
 
   if (clientesSnapshot.exists()) {
-    const clientesRemotos = normalizarArray(clientesSnapshot.val());
-    const clientesLocais = lerLocal<unknown[]>(CLIENTES_STORAGE_KEY) ?? [];
+    registrarChavesSnapshot(clientesSnapshot.val());
+    const clientesRemotosBrutos = normalizarArray(clientesSnapshot.val());
+    const clientesRemotos = filtrarNaoExcluidos(clientesRemotosBrutos);
+    const clientesLocaisBrutos = lerLocal<unknown[]>(CLIENTES_STORAGE_KEY) ?? [];
+    const clientesLocais = filtrarNaoExcluidos(clientesLocaisBrutos);
     const pendentes = pendentesQueNaoVieram(clientesRemotos, clientesPendentes);
     const baseComPendentes = adicionarPendentes(clientesRemotos, pendentes);
     clientesParaUsar = adicionarLocaisNaoRemotos(baseComPendentes, clientesLocais);
@@ -239,7 +289,9 @@ function iniciarListeners() {
     onValue(ref(database, CLIENTES_PATH), (snapshot) => {
       if (!snapshot.exists()) return;
 
-      const clientesRemotos = normalizarArray(snapshot.val());
+      registrarChavesSnapshot(snapshot.val());
+      const clientesRemotosBrutos = normalizarArray(snapshot.val());
+      const clientesRemotos = filtrarNaoExcluidos(clientesRemotosBrutos);
       const clientesPendentes = lerClientesPendentes();
       const pendentes = pendentesQueNaoVieram(clientesRemotos, clientesPendentes);
 
@@ -381,41 +433,43 @@ export async function excluirClienteFirebase(cliente: unknown) {
   const id = registro.id;
   if (id === undefined || id === null) return false;
 
+  // 1. Marca imediatamente como excluído (para nunca ressurgir se snapshot remoto vier depois)
+  marcarClienteExcluido(id);
+  if (registro.codigo) marcarClienteExcluido(registro.codigo);
+
+  // 2. Remove do cache local imediatamente
+  const locais = lerLocal<any[]>(CLIENTES_STORAGE_KEY) ?? [];
+  const filtrados = locais.filter((c) => String(c.id) !== String(id) && String(c.codigo) !== String(registro.codigo));
+  gravarLocal(CLIENTES_STORAGE_KEY, filtrados);
+  avisarAtualizacao(filtrados);
+
+  // 3. Remove no Firebase de forma direta e rápida sem baixar todo o banco
   try {
-    const clientesRef = ref(database, CLIENTES_PATH);
-    const snapshot = await comPrazo(
-      get(clientesRef),
-      "Firebase demorou demais para excluir o cliente.",
+    const chavesParaRemover = new Set<string>();
+    const chaveRemota =
+      mapaChavesRemotas.get("id:" + String(id)) ||
+      (registro.codigo ? mapaChavesRemotas.get("codigo:" + String(registro.codigo)) : undefined);
+
+    if (chaveRemota) chavesParaRemover.add(chaveRemota);
+    chavesParaRemover.add(String(id));
+    if (registro.codigo) chavesParaRemover.add(String(registro.codigo));
+
+    await Promise.allSettled(
+      [...chavesParaRemover].map((ch) => remove(ref(database, `${CLIENTES_PATH}/${ch}`)))
     );
 
-    if (snapshot.exists()) {
-      const entrada = Object.entries(snapshot.val() as Record<string, unknown>)
-        .find(([, item]) => item && typeof item === "object" && String((item as Record<string, unknown>).id) === String(id));
-      if (entrada) {
-        await comPrazo(
-          remove(ref(database, `${CLIENTES_PATH}/${entrada[0]}`)),
-          "Firebase demorou demais para excluir o cliente.",
-        );
-      }
-    }
-
+    // Se houver OS vinculada, remove a OS pública também
     const os = registro.os;
     if (os?.numero) {
       const token = tokenOSPublica(String(os.numero), os.publicToken);
-      void comPrazo(
-        remove(ref(database, `${PUBLIC_PATH}/${token}`)),
-        "Firebase demorou demais para remover a OS pública.",
-      ).catch((error) => {
-        // A limpeza da página pública não pode impedir a exclusão do cliente.
-        console.warn("N\\u00e3o foi poss\\u00edvel remover a OS p\\u00fablica:", error);
-      });
+      void remove(ref(database, `${PUBLIC_PATH}/${token}`)).catch(() => {});
     }
+
     avisarStatus("conectado");
     return true;
   } catch (error) {
-    avisarStatus("offline");
-    console.warn("NÃ£o foi possÃ­vel excluir o cliente no Firebase:", error);
-    return false;
+    console.warn("Aviso ao excluir cliente no Firebase:", error);
+    return true;
   }
 }
 
