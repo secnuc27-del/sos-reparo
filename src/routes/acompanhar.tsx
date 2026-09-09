@@ -135,8 +135,16 @@ export function AcompanharPage() {
     window.addEventListener("storage", handleAtualizacaoLocal);
     window.addEventListener("sos-firebase-update", handleAtualizacaoLocal);
 
+    // O listener em tempo real normalmente atualiza na hora, mas alguns
+    // celulares podem suspender essa conexão em segundo plano. A consulta
+    // periódica garante que o QR Code nunca fique preso no status antigo.
+    const intervaloAtualizacao = window.setInterval(() => {
+      void carregar(true);
+    }, 5000);
+
     return () => {
       clearTimeout(timerSeguranca);
+      window.clearInterval(intervaloAtualizacao);
       unsubs.forEach((u) => u());
       window.removeEventListener("storage", handleAtualizacaoLocal);
       window.removeEventListener("sos-firebase-update", handleAtualizacaoLocal);
