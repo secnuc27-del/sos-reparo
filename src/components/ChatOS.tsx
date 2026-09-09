@@ -36,13 +36,20 @@ export function ChatOS({ token, remetente }: ChatOSProps) {
     return () => cancelar();
   }, [token, remetente]);
 
+  const [erroEnvio, setErroEnvio] = useState(false);
+
   const handleEnviar = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!texto.trim() || enviando) return;
 
     setEnviando(true);
-    const msgCriada = await enviarMensagemOS(token, texto, remetente);
+    setErroEnvio(false);
+    const { mensagem: msgCriada, sucesso } = await enviarMensagemOS(token, texto, remetente);
     
+    if (!sucesso) {
+      setErroEnvio(true);
+    }
+
     // Atualização otimista imediata na UI
     setMensagens((atuais) => {
       if (atuais.some(m => m.id === msgCriada.id)) return atuais;
@@ -99,6 +106,13 @@ export function ChatOS({ token, remetente }: ChatOSProps) {
           })
         )}
       </div>
+
+      {/* Erro de envio */}
+      {erroEnvio && (
+        <div className="bg-red-900/50 border-t border-red-700 px-4 py-2 text-xs text-red-300 text-center">
+          ⚠️ Mensagem salva localmente, mas falhou ao sincronizar. Verifique sua conexão.
+        </div>
+      )}
 
       {/* Input de Mensagem */}
       <form onSubmit={handleEnviar} className="border-t border-slate-800 bg-slate-950 p-3 flex gap-2 items-end">

@@ -223,7 +223,7 @@ export function useChatNaoLidas(papel: "tecnico" | "cliente" = "tecnico") {
   return { obterContagem, totalNaoLidas, versao };
 }
 
-export async function enviarMensagemOS(token: string, texto: string, remetente: "cliente" | "tecnico", anexos: string[] = []) {
+export async function enviarMensagemOS(token: string, texto: string, remetente: "cliente" | "tecnico", anexos: string[] = []): Promise<{ mensagem: MensagemChat; sucesso: boolean }> {
   const nova: MensagemChat = {
     id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     texto,
@@ -232,23 +232,30 @@ export async function enviarMensagemOS(token: string, texto: string, remetente: 
     anexos: anexos.length > 0 ? anexos : undefined,
   };
 
-  // Salvar local
+  // Salvar local imediatamente (UX otimista)
   const locais = lerChatLocal(token);
   salvarChatLocal(token, [...locais, nova]);
-
-  // Marcar como lido para quem acabou de enviar
   marcarChatComoLido(token, remetente);
 
-  // Firebase (rodando em background sem await para não travar a tela)
+  // Firebase
+  let sucesso = false;
   try {
     const refMensagem = push(ref(database, `${CHAT_PATH}/${token}`));
-    nova.id = refMensagem.key || nova.id; // Usa o ID do Firebase se possível
-    set(refMensagem, nova).catch(err => console.warn("Erro ao subir msg:", err));
+    nova.id = refMensagem.key || nova.id;
+    await set(refMensagem, {
+      id: nova.id,
+      texto: nova.texto,
+      remetente: nova.remetente,
+      dataISO: nova.dataISO,
+      ...(nova.anexos ? { anexos: nova.anexos } : {}),
+    });
+    sucesso = true;
   } catch (error) {
-    console.warn("Firebase indisponível para o chat, usando apenas localStorage.", error);
+    console.warn("Erro ao salvar mensagem no Firebase:", error);
+    sucesso = false;
   }
   
-  return nova;
+  return { mensagem: nova, sucesso };
 }
 
 export function escutarMensagensOS(token: string, callback: (mensagens: MensagemChat[]) => void): () => void {

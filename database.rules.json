@@ -5,11 +5,28 @@
         "mensagens": {
           ".read": true,
           "$mensagemId": {
-            ".write": "!data.exists() && newData.exists()",
-            ".validate": "newData.hasChildren(['remetente', 'nomeRemetente', 'texto', 'criadoEm']) && (newData.child('remetente').val() == 'cliente' || newData.child('remetente').val() == 'tecnico') && newData.child('nomeRemetente').isString() && newData.child('nomeRemetente').val().length <= 100 && newData.child('texto').isString() && newData.child('texto').val().length <= 2000 && (!newData.hasChild('anexo') || (newData.child('anexo').child('url').isString() && newData.child('anexo').child('url').val().length <= 2000))"
+            ".write": "!data.exists() && newData.exists()"
           }
         }
       }
+    },
+    "chatOS": {
+      "$token": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "publicOS": {
+      ".read": true,
+      ".write": true
+    },
+    "clientes": {
+      ".read": true,
+      ".write": true
+    },
+    "equipamentosEdicoes": {
+      ".read": true,
+      ".write": true
     }
   }
 }
