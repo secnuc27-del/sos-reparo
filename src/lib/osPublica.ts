@@ -161,6 +161,50 @@ export async function salvarOSPublica(registro: PublicOSRecord) {
   }
 }
 
+/**
+ * Atualiza somente os campos que mudam ao trocar o status.
+ *
+ * A OS completa pode conter fotos grandes. Se uma gravação completa falhar
+ * por tamanho ou conexão, o status ainda precisa chegar ao QR Code.
+ */
+export async function atualizarStatusOSPublica(
+  token: string,
+  numero: string,
+  status: string,
+  assinaturaEntrega: boolean | string = false,
+  assinaturaEm = "",
+) {
+  const atualizadaEm = new Date().toISOString();
+  const campos = {
+    status,
+    atualizadaEm,
+    assinaturaEntrega: status === "Entregue" ? (assinaturaEntrega || true) : false,
+    assinaturaEm: status === "Entregue" ? assinaturaEm : "",
+  };
+  const chaves = new Set([token, tokenOSPublica(numero)]);
+  let salvoNaNuvem = false;
+
+  for (const chave of chaves) {
+    if (!chave) continue;
+    try {
+      await update(ref(database, `${PUBLIC_PATH}/${chave}`), campos);
+      salvoNaNuvem = true;
+    } catch (error) {
+      console.warn("Não foi possível atualizar o status público da OS:", error);
+    }
+  }
+
+  const mapa = lerMapaLocal();
+  for (const chave of chaves) {
+    const existente = mapa[chave];
+    if (existente) {
+      mapa[chave] = { ...existente, ...campos };
+    }
+  }
+  salvarMapaLocal(mapa);
+  return salvoNaNuvem;
+}
+
 function gerarChavesCandidatas(token: string): string[] {
   const t = String(token || "").trim();
   const c = new Set<string>();

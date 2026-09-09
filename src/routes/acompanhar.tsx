@@ -7,8 +7,6 @@ import { ModalAssinaturaEntrega } from "@/components/ModalAssinaturaEntrega";
 import { ModalVisualizarAssinatura } from "@/components/ModalVisualizarAssinatura";
 import { PesquisaSatisfacaoCliente } from "@/components/PesquisaSatisfacaoCliente";
 import { obterAvaliacaoPorToken } from "@/lib/avaliacoes";
-import { ref, onValue } from "firebase/database";
-import { database } from "@/lib/firebase";
 
 const etapas = ["Aguardando", "Em análise", "Em reparo", "Aguardando peça", "Pronto", "Entregue"];
 
@@ -73,46 +71,8 @@ export function AcompanharPage() {
       clearTimeout(timerSeguranca);
     });
 
-    // 3. Conexão direta em tempo real com o Firebase
-    const unsubs: (() => void)[] = [];
     const tokenNorm = token.startsWith("os-") ? token : `os-${token.toLowerCase()}`;
-    const chavesParaOuvir = new Set([token, tokenNorm]);
-
-    chavesParaOuvir.forEach((ch) => {
-      try {
-        const osRef = ref(database, `publicOS/${ch}`);
-        const unsub = onValue(
-          osRef,
-          (snapshot) => {
-            if (snapshot.exists()) {
-              clearTimeout(timerSeguranca);
-              const dados = snapshot.val() as PublicOSRecord;
-              setOs((prev) => {
-                if (!prev) return dados;
-                const mudou =
-                  prev.status !== dados.status ||
-                  prev.aprovacaoOrcamento !== dados.aprovacaoOrcamento ||
-                  prev.valor !== dados.valor ||
-                  prev.fotoAntes !== dados.fotoAntes ||
-                  prev.fotoDepois !== dados.fotoDepois ||
-                  prev.assinaturaEntrega !== dados.assinaturaEntrega ||
-                  JSON.stringify((prev as any).avaliacao) !== JSON.stringify((dados as any).avaliacao);
-                return mudou ? { ...prev, ...dados } : prev;
-              });
-              setCarregando(false);
-            }
-          },
-          (err) => {
-            console.warn("Aviso na sincronização de OS em tempo real:", err);
-          }
-        );
-        unsubs.push(unsub);
-      } catch (e) {
-        console.warn("Firebase listener não inicializado para " + ch, e);
-      }
-    });
-
-    // 4. Atualizações locais quando o mesmo navegador alterar a OS em outra aba
+    // Atualizações locais quando o mesmo navegador alterar a OS em outra aba.
     const handleAtualizacaoLocal = () => {
       const mapa = mapaOSPublicasLocal();
       const local = mapa[token] || mapa[tokenNorm];
@@ -135,9 +95,8 @@ export function AcompanharPage() {
     window.addEventListener("storage", handleAtualizacaoLocal);
     window.addEventListener("sos-firebase-update", handleAtualizacaoLocal);
 
-    // O listener em tempo real normalmente atualiza na hora, mas alguns
-    // celulares podem suspender essa conexão em segundo plano. A consulta
-    // periódica garante que o QR Code nunca fique preso no status antigo.
+    // A página pública usa somente consulta periódica. Isso evita que um
+    // listener em tempo real suspenso no celular mantenha dados antigos.
     const intervaloAtualizacao = window.setInterval(() => {
       void carregar(true);
     }, 5000);
@@ -145,7 +104,6 @@ export function AcompanharPage() {
     return () => {
       clearTimeout(timerSeguranca);
       window.clearInterval(intervaloAtualizacao);
-      unsubs.forEach((u) => u());
       window.removeEventListener("storage", handleAtualizacaoLocal);
       window.removeEventListener("sos-firebase-update", handleAtualizacaoLocal);
     };
@@ -321,7 +279,7 @@ export function AcompanharPage() {
           <div className="mt-5 flex items-center justify-between rounded-2xl border border-slate-800/80 bg-slate-950/60 px-4 py-3 text-xs text-slate-400">
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Status conectado em tempo real</span>
+              <span>Atualiza automaticamente a cada 5 segundos</span>
             </div>
             <span>SOS Reparo</span>
           </div>

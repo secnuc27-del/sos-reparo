@@ -25,7 +25,7 @@ import { createPortal } from "react-dom";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { QRCodeSVG } from "qrcode.react";
 
-import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica, urlOSPublica } from "@/lib/osPublica";
+import { atualizarStatusOSPublica, criarRegistroOSPublica, salvarOSPublica, tokenOSPublica, urlOSPublica } from "@/lib/osPublica";
 import { salvarClienteFirebase, salvarEdicoesFirebase, salvarClientesLocal } from "@/lib/firebaseSync";
 import { MarcaLogo } from "@/components/MarcaLogo";
 import { ModalAssinaturaEntrega } from "@/components/ModalAssinaturaEntrega";
@@ -243,6 +243,17 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
     }
 
     const isEntregue = novoStatus === "Entregue";
+    const token = tokenOSPublica(os.numero, os.publicToken);
+
+    // Publica primeiro somente o status. Essa atualização é pequena e não
+    // fica bloqueada pelo envio de fotos ou pelo restante do cadastro.
+    const publicacaoStatus = atualizarStatusOSPublica(
+      token,
+      os.numero,
+      novoStatus,
+      isEntregue ? (os.assinaturaEntrega || true) : false,
+      isEntregue ? os.assinaturaEm : "",
+    );
 
     // 1. Cliente local
     if (os.clienteId) {
@@ -265,6 +276,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
             return c;
           });
           salvarClientesLocal(novos);
+          setOrdens(carregarOrdens());
           const clienteAtualizado = novos.find((c: any) => c.id === os.clienteId);
           if (clienteAtualizado) await salvarClienteFirebase(clienteAtualizado);
         }
@@ -285,12 +297,15 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
         edicoes[eqId] = dados;
         if (os.numero) edicoes[os.numero] = dados;
         localStorage.setItem("sos_eq_static_edits", JSON.stringify(edicoes));
+        setOrdens(carregarOrdens());
         await salvarEdicoesFirebase(edicoes);
       } catch {}
     }
 
-    // 3. Atualiza Firebase publicOS
-    const token = tokenOSPublica(os.numero, os.publicToken);
+    void publicacaoStatus;
+
+    // Mantém os demais dados públicos atualizados quando a gravação completa
+    // estiver disponível.
     const registro = criarRegistroOSPublica({
       ...os,
       status: novoStatus,
