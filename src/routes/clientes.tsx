@@ -257,6 +257,23 @@ export function ClientesPage() {
   const [excluindoCliente, setExcluindoCliente] = useState(false);
   const [erroExclusao, setErroExclusao] = useState("");
   const fotoAlvoRef = useRef<"fotoEquipamento" | "fotoAntes" | "fotoDepois">("fotoEquipamento");
+  const [cidades, setCidades] = useState<{ id: number; nome: string }[]>([]);
+  const [carregandoCidades, setCarregandoCidades] = useState(false);
+
+  useEffect(() => {
+    if (!form.estado) {
+      setCidades([]);
+      return;
+    }
+    setCarregandoCidades(true);
+    fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${form.estado}/municipios`)
+      .then((res) => res.json())
+      .then((data) => {
+        setCidades(data.sort((a: any, b: any) => a.nome.localeCompare(b.nome)));
+      })
+      .catch(() => setCidades([]))
+      .finally(() => setCarregandoCidades(false));
+  }, [form.estado]);
 
   useEffect(() => {
     salvarClientesLocal(clientes);
@@ -380,11 +397,37 @@ export function ClientesPage() {
       c.telefone.includes(busca)
   );
 
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>, alvo: "fotoEquipamento" | "fotoAntes" | "fotoDepois") => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_TAMANHO_FOTO_BYTES) {
+      setErros({ foto: "A foto precisa ter no máximo 1 GB." });
+      return;
+    }
+    setFotoProcessando(true);
+    setErros({});
+    try {
+      const fotoLeve = await comprimirFoto(file);
+      set(alvo, fotoLeve);
+    } catch {
+      setErros({ foto: "Não foi possível processar esta foto. Tente outra imagem." });
+    } finally {
+      setFotoProcessando(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
   const handleFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_TAMANHO_FOTO_BYTES) {
-      setErros({ foto: "A foto precisa ter no m\u00e1ximo 1 GB." });
+      setErros({ foto: "A foto precisa ter no máximo 1 GB." });
       e.target.value = "";
       return;
     }
@@ -869,8 +912,20 @@ export function ClientesPage() {
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cidade</label>
-                      <input type="text" value={form.cidade} onChange={(e) => set("cidade", e.target.value)}
-                        placeholder="Digite a cidade (opcional)" className={inputCls()} />
+                      <select 
+                        value={form.cidade.split(' - ')[0] || ''} 
+                        onChange={(e) => {
+                          const cidadeSelecionada = e.target.value;
+                          set("cidade", cidadeSelecionada ? `${cidadeSelecionada} - ${form.estado}` : "");
+                        }}
+                        disabled={!form.estado || carregandoCidades}
+                        className={inputCls()}
+                      >
+                        <option value="">{carregandoCidades ? "Carregando cidades..." : (form.estado ? "Selecione a cidade (opcional)" : "Selecione o estado primeiro")}</option>
+                        {cidades.map((c) => (
+                          <option key={c.id} value={c.nome}>{c.nome}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status do cliente</label>
@@ -894,37 +949,58 @@ export function ClientesPage() {
                     <div className="flex flex-col items-center gap-2">
                       <div
                         onClick={() => selecionarFoto("fotoEquipamento")}
+                        onDrop={(e) => handleDrop(e, "fotoEquipamento")}
+                        onDragOver={handleDragOver}
                         className="relative flex h-32 w-full max-w-xs cursor-pointer items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-input bg-muted hover:border-primary hover:bg-accent transition-colors"
                       >
                         {form.fotoEquipamento ? (
                           <img src={form.fotoEquipamento} alt="Equipamento" className="h-full w-full object-contain p-2" />
                         ) : (
-                          <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                            <Camera className="h-8 w-8" />
-                            <span className="text-xs font-medium">Clique para adicionar foto do aparelho</span>
+                          <div className="text-center p-4">
+                            <Camera className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                            <span className="text-sm text-muted-foreground">Clique ou arraste a foto do aparelho</span>
                           </div>
                         )}
                       </div>
-                      <button type="button" onClick={() => selecionarFoto("fotoEquipamento")}
-                        disabled={fotoProcessando}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">
-                        <Upload className="h-3.5 w-3.5" />
-                        {fotoProcessando ? "Processando foto..." : form.fotoEquipamento ? "Trocar foto" : "Escolher da galeria / explorador"}
+                      <div className="flex w-full max-w-xs gap-2">
+                        <div
+                          onClick={() => selecionarFoto("fotoAntes")}
+                          onDrop={(e) => handleDrop(e, "fotoAntes")}
+                          onDragOver={handleDragOver}
+                          className="relative flex h-24 flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-input bg-muted hover:border-primary hover:bg-accent transition-colors"
+                        >
+                          {form.fotoAntes ? (
+                            <img src={form.fotoAntes} alt="Antes" className="h-full w-full object-contain p-1" />
+                          ) : (
+                            <span className="text-xs text-muted-foreground text-center px-2">Adicionar foto antes</span>
+                          )}
+                        </div>
+                        <div
+                          onClick={() => selecionarFoto("fotoDepois")}
+                          onDrop={(e) => handleDrop(e, "fotoDepois")}
+                          onDragOver={handleDragOver}
+                          className="relative flex h-24 flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-input bg-muted hover:border-primary hover:bg-accent transition-colors"
+                        >
+                          {form.fotoDepois ? (
+                            <img src={form.fotoDepois} alt="Depois" className="h-full w-full object-contain p-1" />
+                          ) : (
+                            <span className="text-xs text-muted-foreground text-center px-2">Adicionar foto depois</span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => selecionarFoto("fotoEquipamento")}
+                        className="mt-2 inline-flex items-center gap-2 rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <Upload className="h-4 w-4" /> Escolher da galeria / explorador
                       </button>
                       <input ref={fotoRef} type="file" accept="image/*,.jpn,.jpg,.jpeg,.png,.webp,.gif,.avif,.heic,.heif,.webm" className="hidden" onChange={handleFoto} />
                       {erros.foto && <p className="text-center text-xs text-destructive">{erros.foto}</p>}
-                      <div className="grid w-full max-w-xs grid-cols-2 gap-2">
-                        <button type="button" onClick={() => selecionarFoto("fotoAntes")} className="flex h-20 items-center justify-center overflow-hidden rounded-lg border border-input bg-background text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-accent">
-                          {form.fotoAntes ? <img src={form.fotoAntes} alt="Foto antes" className="h-full w-full object-cover" /> : "Adicionar foto antes"}
-                        </button>
-                        <button type="button" onClick={() => selecionarFoto("fotoDepois")} className="flex h-20 items-center justify-center overflow-hidden rounded-lg border border-input bg-background text-xs font-medium text-muted-foreground transition-colors hover:border-primary hover:bg-accent">
-                          {form.fotoDepois ? <img src={form.fotoDepois} alt="Foto depois" className="h-full w-full object-cover" /> : "Adicionar foto depois"}
-                        </button>
-                      </div>
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">N\u00famero de s\u00e9rie / IMEI</label>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">Número de série / IMEI</label>
                       <input type="text" value={form.serial} onChange={(e) => set("serial", e.target.value)} placeholder="Opcional" className={inputCls()} />
                     </div>
 

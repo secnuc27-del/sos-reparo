@@ -1,25 +1,36 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
+export type UserRole = "dono" | "funcionario";
+
 type AuthContextType = {
   isAuthenticated: boolean;
-  login: (password: string) => boolean;
+  role: UserRole | null;
+  login: (role: UserRole, password: string) => boolean;
   logout: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const SENHA_CORRETA = "admin123";
+const SENHA_DONO = "admin123";
+const SENHA_FUNC = "func123";
 const AUTH_KEY = "techfix_auth";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem(AUTH_KEY) === "true";
+  const [role, setRole] = useState<UserRole | null>(() => {
+    return (localStorage.getItem(AUTH_KEY) as UserRole) || null;
   });
 
-  const login = (password: string): boolean => {
-    if (password === SENHA_CORRETA) {
-      localStorage.setItem(AUTH_KEY, "true");
-      setIsAuthenticated(true);
+  const isAuthenticated = role !== null;
+
+  const login = (selectedRole: UserRole, password: string): boolean => {
+    if (selectedRole === "dono" && password === SENHA_DONO) {
+      localStorage.setItem(AUTH_KEY, "dono");
+      setRole("dono");
+      return true;
+    }
+    if (selectedRole === "funcionario" && password === SENHA_FUNC) {
+      localStorage.setItem(AUTH_KEY, "funcionario");
+      setRole("funcionario");
       return true;
     }
     return false;
@@ -27,11 +38,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     localStorage.removeItem(AUTH_KEY);
-    setIsAuthenticated(false);
+    setRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, role, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

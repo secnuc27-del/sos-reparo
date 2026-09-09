@@ -1,16 +1,25 @@
 import { Layout } from "@/components/Layout";
-import { DollarSign, TrendingUp, MonitorSmartphone, CheckCircle2, CalendarRange } from "lucide-react";
+import { DollarSign, TrendingUp, MonitorSmartphone, CheckCircle2, CalendarRange, Star, MessageSquareHeart } from "lucide-react";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { ordensIniciais } from "./ordens-servico";
+import { useAuth } from "@/components/AuthProvider";
+import { Navigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
 } from "recharts";
+import { obterTodasAvaliacoes, calcularMetricasSatisfacao, type AvaliacaoOS } from "@/lib/avaliacoes";
 
 const COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#64748b"];
 
 export function DashboardPage() {
+  const { role } = useAuth();
+
+  if (role === "funcionario") {
+    return <Navigate to="/clientes" replace />;
+  }
+
   const [stats, setStats] = useState({
     faturamento: 0,
     ticketMedio: 0,
@@ -21,21 +30,30 @@ export function DashboardPage() {
   const [periodo, setPeriodo] = useState<"todos" | "dia" | "semana" | "mes">("todos");
   const [dataReferencia, setDataReferencia] = useState("");
   const [versaoDados, setVersaoDados] = useState(0);
+  const [avaliacoes, setAvaliacoes] = useState<AvaliacaoOS[]>([]);
 
   const [graficoStatus, setGraficoStatus] = useState<any[]>([]);
   const [graficoDefeitos, setGraficoDefeitos] = useState<any[]>([]);
 
   useEffect(() => {
-    const atualizarDados = () => setVersaoDados((versao) => versao + 1);
+    const atualizarDados = () => {
+      setVersaoDados((versao) => versao + 1);
+      setAvaliacoes(obterTodasAvaliacoes());
+    };
+    setAvaliacoes(obterTodasAvaliacoes());
     window.addEventListener("sos-firebase-update", atualizarDados);
+    window.addEventListener("sos-avaliacao-nova", atualizarDados);
     window.addEventListener("storage", atualizarDados);
     window.addEventListener("focus", atualizarDados);
     return () => {
       window.removeEventListener("sos-firebase-update", atualizarDados);
+      window.removeEventListener("sos-avaliacao-nova", atualizarDados);
       window.removeEventListener("storage", atualizarDados);
       window.removeEventListener("focus", atualizarDados);
     };
   }, []);
+
+  const metricasSatisfacao = calcularMetricasSatisfacao(avaliacoes);
 
   useEffect(() => {
     let ordensLocais: any[] = [];
@@ -186,7 +204,7 @@ export function DashboardPage() {
         </div>
 
         {/* KPIs */}
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md">
             <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl" />
             <div className="flex items-center justify-between">
@@ -245,6 +263,30 @@ export function DashboardPage() {
             </div>
             <div className="mt-4 text-xs text-muted-foreground">Taxa global de sucesso: {stats.taxaConclusao}%</div>
           </div>
+
+          {/* ⭐ 5º KPI: Índice de Satisfação do Cliente (NPS) */}
+          <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm transition-all hover:shadow-md">
+            <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-amber-500/15 blur-2xl" />
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Satisfação (NPS)</p>
+                <div className="mt-2 flex items-baseline gap-1.5">
+                  <span className="text-3xl font-black text-amber-500">{metricasSatisfacao.media.toFixed(1)}</span>
+                  <span className="text-xs font-semibold text-muted-foreground">/ 5.0</span>
+                </div>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
+                <Star className="h-6 w-6 fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs">
+              <span className="flex items-center gap-0.5 text-amber-500 font-bold">
+                {"★".repeat(Math.min(5, Math.round(metricasSatisfacao.media)))}
+                <span className="text-muted-foreground font-normal ml-1">({metricasSatisfacao.total} avaliações)</span>
+              </span>
+              <span className="font-bold text-emerald-600">{metricasSatisfacao.percentualPositivo}% positivo</span>
+            </div>
+          </div>
         </div>
 
         {/* Gráficos */}
@@ -301,6 +343,82 @@ export function DashboardPage() {
             </div>
           </div>
 
+        </div>
+
+        {/* ⭐ Feed de Satisfação & Avaliações dos Clientes em Tempo Real */}
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-foreground">Pesquisa de Satisfação em Tempo Real</h3>
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-bold text-amber-500 border border-amber-500/25">
+                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                  {metricasSatisfacao.media.toFixed(1)} / 5.0 Estrelas
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Avaliações e elogios preenchidos pelos clientes ao confirmarem a retirada do aparelho
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-xs font-medium text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Atualização instantânea</span>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {avaliacoes.slice(0, 6).map((av, idx) => (
+              <div
+                key={av.tokenOS || idx}
+                className="rounded-2xl border border-border bg-background/60 p-4 flex flex-col justify-between shadow-xs hover:border-amber-400/40 hover:bg-background transition-all"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-sm text-foreground">{av.cliente}</p>
+                      <p className="text-xs text-muted-foreground">{av.equipamento}</p>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`h-3.5 w-3.5 ${
+                            s <= av.estrelas
+                              ? "fill-amber-400 text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.3)]"
+                              : "fill-muted text-muted-foreground/30"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  {av.elogio && (
+                    <p className="mt-3 text-xs italic text-foreground/90 bg-muted/40 p-2.5 rounded-xl border border-border/60">
+                      "{av.elogio}"
+                    </p>
+                  )}
+
+                  {av.tags && av.tags.length > 0 && (
+                    <div className="mt-2.5 flex flex-wrap gap-1">
+                      {av.tags.map((t) => (
+                        <span
+                          key={t}
+                          className="rounded-lg border border-border/80 bg-muted/30 px-2 py-0.5 text-[10px] text-muted-foreground"
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span className="font-semibold text-primary">{av.numeroOS}</span>
+                  <span>{av.dataFmt}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
       </div>

@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { useAuth } from "./AuthProvider";
+import { useAuth, type UserRole } from "./AuthProvider";
 import { Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { logoUrl } from "@/lib/logo";
 
 export function LoginPage() {
   const { login } = useAuth();
+  const [selectedRole, setSelectedRole] = useState<UserRole>("dono");
   const [senha, setSenha] = useState("");
   const [mostrar, setMostrar] = useState(false);
   const [erro, setErro] = useState(false);
@@ -17,7 +18,7 @@ export function LoginPage() {
     setLoading(true);
     setErro(false);
     await new Promise((r) => setTimeout(r, 600));
-    const ok = login(senha);
+    const ok = login(selectedRole, senha);
     if (!ok) {
       setErro(true);
       setShake(true);
@@ -120,7 +121,38 @@ export function LoginPage() {
           {/* Divisor */}
           <div className="mb-7 h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Seletor de Perfil */}
+            <div>
+              <label className="mb-2 block text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Tipo de Acesso
+              </label>
+              <div className="flex rounded-xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => { setSelectedRole("dono"); setErro(false); }}
+                  className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
+                    selectedRole === "dono"
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Dono
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedRole("funcionario"); setErro(false); }}
+                  className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-all ${
+                    selectedRole === "funcionario"
+                      ? "bg-white text-blue-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  Funcionário
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="mb-2 block text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Senha de acesso

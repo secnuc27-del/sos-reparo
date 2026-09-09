@@ -15,13 +15,22 @@ import {
   QrCode,
   Copy,
   ExternalLink,
+  MessagesSquare,
+  X,
+  PenLine,
+  Star,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { QRCodeSVG } from "qrcode.react";
+import { ChatOS } from "@/components/ChatOS";
+import { marcarChatComoLido, useChatNaoLidas } from "@/lib/chat";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica, urlOSPublica } from "@/lib/osPublica";
 import { MarcaLogo } from "@/components/MarcaLogo";
+import { ModalAssinaturaEntrega } from "@/components/ModalAssinaturaEntrega";
+import { ModalVisualizarAssinatura } from "@/components/ModalVisualizarAssinatura";
+import { obterAvaliacaoPorToken } from "@/lib/avaliacoes";
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -42,7 +51,6 @@ const fotoEquipamento: Record<string, string> = {
   "Sony PlayStation 5": `${import.meta.env.BASE_URL}fotos/Sony PlayStation 5.webp`,
 };
 
-// Parse DD/MM/YYYY to a Date for sorting (older = higher priority in queue)
 const parseDate = (dateStr: string): Date => {
   if (!dateStr || dateStr === "-") return new Date(9999, 0, 1);
   const parts = dateStr.split("/");
@@ -151,6 +159,10 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [qrOs, setQrOs] = useState<{ registro: any; link: string } | null>(null);
   const [linkCopiado, setLinkCopiado] = useState(false);
+  const [chatOs, setChatOs] = useState<any>(null);
+  const { obterContagem } = useChatNaoLidas("tecnico");
+  const [osParaEntregar, setOsParaEntregar] = useState<any>(null);
+  const [osParaVisualizarAssinatura, setOsParaVisualizarAssinatura] = useState<any>(null);
 
   const carregarOrdens = () => {
     let ordensLocais: any[] = [];
@@ -159,7 +171,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
       if (salvo) {
         const clientesStr = JSON.parse(salvo);
         ordensLocais = clientesStr
-          .filter((c: any) => c.os)  // all clients with an OS
+          .filter((c: any) => c.os)
           .map((c: any) => ({
             id: `local-${c.id}`,
             clienteId: c.id,
@@ -181,6 +193,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
             publicToken: c.os.publicToken,
             aprovacaoOrcamento: c.os.aprovacaoOrcamento || "pendente",
             assinaturaEntrega: c.os.assinaturaEntrega || "",
+            assinaturaEm: c.os.assinaturaEm || "",
             defeito: c.os.defeito || "",
             dataEntradaDate: parseDate(c.os.dataEntrada),
           }));
@@ -190,9 +203,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
     const staticSalvo = localStorage.getItem("sos_eq_static_edits");
     const staticEdits: Record<string, any> = staticSalvo ? JSON.parse(staticSalvo) : {};
 
-    // Sort iniciais with a parsed date too
     const iniciaisComData = ordensIniciais.map((o) => {
-      // Check if this static order was edited
       const eq = equipamentosIniciais.find(
         (e) => `${e.marca} ${e.modelo}`.trim() === o.equipamento
       );
@@ -209,41 +220,18 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
         publicToken: tokenOSPublica(o.numero),
         aprovacaoOrcamento: staticEdit.aprovacaoOrcamento || "pendente",
         assinaturaEntrega: staticEdit.assinaturaEntrega || "",
+        assinaturaEm: staticEdit.assinaturaEm || "",
         dataEntradaDate: parseDate(o.abertura),
       };
     });
 
-    // Merge: locals first + iniciais
     const mesclado = [...ordensLocais, ...iniciaisComData];
-    
-    // Deduplicate by OS number (numero) keeping the local edit first
     const unicos = mesclado.filter((v, i, a) => a.findIndex(t => t.numero === v.numero) === i);
-
-    // Sort ALL by entry date ascending (oldest first = highest priority)
     const finalSort = unicos.sort(
       (a, b) => a.dataEntradaDate.getTime() - b.dataEntradaDate.getTime()
     );
 
     return finalSort;
-  };
-
-  const excluirOS = (os: any) => {
-    setConfirmDelete(null);
-    return;
-    if (!os.clienteId) {
-      setConfirmDelete(null);
-      return; // can't delete static entries
-    }
-    try {
-      const salvo = localStorage.getItem("sos_clientes");
-      if (salvo) {
-        const clientes = JSON.parse(salvo);
-        const novos = clientes.filter((c: any) => c.id !== os.clienteId);
-        localStorage.setItem("sos_clientes", JSON.stringify(novos));
-      }
-    } catch {}
-    setConfirmDelete(null);
-    window.location.reload();
   };
 
   const abrirQrCode = (os: any) => {
@@ -289,7 +277,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
     ? ordens.filter((o) => o.status === "Pronto")
     : ordens;
 
-  // Active = not Entregue; separate them
   const ordensAtivas = ordensVisiveis.filter(o => o.status !== "Entregue");
   const ordensEntregues = ordensVisiveis.filter(o => o.status === "Entregue");
   const statusAtual = apenasProntas ? "Pronto" : filtroStatus;
@@ -307,7 +294,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
 
   const ativasFiltradas = filtrarLista(ordensAtivas);
   const entreguesFiltradas = filtrarLista(ordensEntregues);
-  const todasFiltradas = filtrarLista(ordens);
 
   const stats = apenasProntas
     ? [
@@ -330,14 +316,12 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
       >
         <div className={`w-1.5 shrink-0 transition-colors ${isConcluido ? 'bg-emerald-500 group-hover:bg-emerald-400' : 'bg-primary/70 group-hover:bg-primary'}`} />
 
-        {/* Posição na fila */}
         <div className="flex flex-row lg:flex-col items-center justify-center bg-muted/40 px-6 py-4 lg:min-w-[100px] border-b lg:border-b-0 lg:border-r border-border gap-2 lg:gap-1">
           <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Fila</span>
           <span className="text-3xl font-black text-primary leading-none">#{posicao}</span>
         </div>
 
         <div className="flex flex-1 flex-col lg:flex-row p-5 gap-6 lg:items-center">
-          {/* Foto & Info Principal */}
           <div className="flex min-w-0 flex-1 items-center gap-4 lg:min-w-[260px]">
             <div className="relative shrink-0">
               {os.fotoLocal || fotoEquipamento[os.equipamento] ? (
@@ -373,7 +357,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
             </div>
           </div>
 
-          {/* Serviço & Técnico */}
           <div className="flex min-w-0 flex-col gap-2 lg:min-w-[200px] lg:border-l lg:border-border/50 lg:pl-6">
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-0.5">Serviço</p>
@@ -388,7 +371,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
             </div>
           </div>
 
-          {/* Datas & Valores */}
           <div className="flex min-w-0 flex-col gap-2 lg:min-w-[160px] lg:border-l lg:border-border/50 lg:pl-6">
             <div>
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold mb-0.5">Entrada</p>
@@ -412,13 +394,33 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
             </div>
           </div>
 
-          {/* Status + Ações */}
           <div className="flex min-w-0 flex-row items-center justify-between gap-2 border-t border-border/50 pt-4 lg:mt-0 lg:min-w-[140px] lg:flex-col lg:items-end lg:justify-center lg:border-l lg:border-t-0 lg:border-border/50 lg:pl-6 lg:pt-0">
             <div className="flex flex-col items-start lg:items-end gap-1">
               <StatusBadge status={os.status} />
               <p className="text-[10px] font-medium text-muted-foreground tracking-wide mt-1">Prev: <span className="text-foreground">{os.previsao}</span></p>
             </div>
             <div className="flex items-center gap-1 lg:mt-2">
+              {(() => {
+                const tokenChat = tokenOSPublica(os.numero, os.publicToken);
+                const naoLidas = obterContagem(tokenChat);
+                return (
+                  <button
+                    onClick={() => {
+                      marcarChatComoLido(tokenChat, "tecnico");
+                      setChatOs(os);
+                    }}
+                    className="relative rounded-lg bg-cyan-500/10 p-2 text-cyan-500 transition-all hover:bg-cyan-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                    title={naoLidas > 0 ? `${naoLidas} nova(s) mensagem(ns)` : "Chat com o cliente"}
+                  >
+                    <MessagesSquare className="h-4 w-4" />
+                    {naoLidas > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-md ring-2 ring-card animate-in zoom-in-50 duration-200">
+                        {naoLidas > 9 ? "9+" : naoLidas}
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
               <button
                 onClick={() => abrirQrCode(os)}
                 className="rounded-lg bg-primary/10 p-2 text-primary transition-all hover:bg-primary hover:text-primary-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
@@ -427,59 +429,60 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
                 <QrCode className="h-4 w-4" />
               </button>
               {os.status === "Pronto" && (
-                <button
-                  onClick={() => {
-                    const texto = `Olá ${os.cliente}, sua Ordem de Serviço ${os.numero} referente ao ${os.equipamento} acabou de ser concluída e está pronta para retirada!`;
-                    const num = (os.telefone || "").replace(/\D/g, "");
-                    const zap = num ? (num.startsWith("55") ? num : `55${num}`) : "";
-                    const url = `https://wa.me/${zap}?text=${encodeURIComponent(texto)}`;
-                    window.open(url, '_blank');
-                  }}
-                  className="p-2 rounded-lg text-emerald-500 bg-emerald-500/10 hover:text-white hover:bg-emerald-500 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
-                  title="Avisar cliente pelo WhatsApp"
-                >
-                  <WhatsAppIcon className="h-4 w-4" />
-                </button>
+                <>
+                  <button
+                    onClick={() => setOsParaEntregar(os)}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-500 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
+                    title="Coletar assinatura do cliente e registrar entrega"
+                  >
+                    <PenLine className="h-4 w-4" />
+                    <span className="hidden sm:inline">Entregar</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const texto = `Olá ${os.cliente}, sua Ordem de Serviço ${os.numero} referente ao ${os.equipamento} acabou de ser concluída e está pronta para retirada!`;
+                      const num = (os.telefone || "").replace(/\D/g, "");
+                      const zap = num ? (num.startsWith("55") ? num : `55${num}`) : "";
+                      const url = `https://wa.me/${zap}?text=${encodeURIComponent(texto)}`;
+                      window.open(url, '_blank');
+                    }}
+                    className="p-2 rounded-lg text-emerald-500 bg-emerald-500/10 hover:text-white hover:bg-emerald-500 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
+                    title="Avisar cliente pelo WhatsApp"
+                  >
+                    <WhatsAppIcon className="h-4 w-4" />
+                  </button>
+                </>
               )}
-              {false && os.clienteId && (
-                <button
-                  onClick={() => setConfirmDelete(os.id)}
-                  className="p-2 rounded-lg text-muted-foreground hover:text-white hover:bg-red-500 transition-all focus:outline-none focus:ring-2 focus:ring-red-500/50"
-                  title="Excluir OS"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+
+              {os.status === "Entregue" && (
+                <>
+                  {(() => {
+                    const av = obterAvaliacaoPorToken(os.numero || os.publicToken);
+                    if (!av) return null;
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-lg border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-xs font-bold text-amber-500 shadow-xs"
+                        title={`Avaliação do cliente: ${av.estrelas} estrelas ${av.elogio ? `("${av.elogio}")` : ""}`}
+                      >
+                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                        <span>{av.estrelas}.0</span>
+                      </span>
+                    );
+                  })()}
+                  <button
+                    onClick={() => setOsParaVisualizarAssinatura(os)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold text-emerald-500 hover:bg-emerald-500/20 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-sm"
+                    title="Ver assinatura digital de entrega"
+                  >
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <span>Assinatura</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
         </div>
-
-        {/* Modal de confirmação de delete */}
-        {false && confirmDelete === os.id && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/90 backdrop-blur-sm rounded-2xl">
-            <div className="bg-card border border-border rounded-xl p-6 shadow-xl text-center max-w-xs mx-4 animate-in zoom-in-95 duration-200">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 mb-4">
-                <Trash2 className="h-6 w-6 text-red-500" />
-              </div>
-              <p className="text-base font-bold text-foreground mb-1">Excluir OS {os.numero}?</p>
-              <p className="text-xs text-muted-foreground mb-6">Esta ação não pode ser desfeita e removerá o registro permanentemente.</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setConfirmDelete(null)}
-                  className="flex-1 rounded-lg border border-border py-2 text-sm font-semibold text-foreground hover:bg-muted transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => excluirOS(os)}
-                  className="flex-1 rounded-lg bg-red-500 py-2 text-sm font-bold text-white hover:bg-red-600 transition-colors shadow-sm"
-                >
-                  Excluir
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -487,7 +490,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
   return (
     <Layout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-foreground">
@@ -501,7 +503,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
           </div>
         </div>
 
-        {/* Stats */}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {stats.map((s) => (
             <div key={s.label} className="group flex items-center gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-all duration-300 hover:shadow-md hover:border-primary/30">
@@ -516,7 +517,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
           ))}
         </div>
 
-        {/* Filtros */}
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-5 py-4 shadow-sm">
           <div className="relative w-full min-w-0 max-w-sm flex-1 sm:min-w-52">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -546,7 +546,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
           )}
         </div>
 
-        {/* Fila ativa */}
         <div className="space-y-3">
           {ativasFiltradas.length === 0 && statusAtual !== "Entregue" && (
             <div className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-border bg-card">
@@ -558,7 +557,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
           {ativasFiltradas.map((os, idx) => renderCard(os, idx + 1))}
         </div>
 
-        {/* Seção de Entregues */}
         {(entreguesFiltradas.length > 0 || filtroStatus === "Entregue") && (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
@@ -601,6 +599,37 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
         ),
         document.body,
       )}
+
+      {chatOs && typeof document !== "undefined" && createPortal(
+        <div className="modal-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+          <div className="modal-panel relative w-full max-w-lg rounded-2xl bg-card shadow-2xl">
+            <button
+              onClick={() => setChatOs(null)}
+              className="absolute right-4 top-4 z-10 rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <ChatOS token={tokenOSPublica(chatOs.numero, chatOs.publicToken)} remetente="tecnico" />
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <ModalAssinaturaEntrega
+        aberto={Boolean(osParaEntregar)}
+        aoFechar={() => setOsParaEntregar(null)}
+        os={osParaEntregar}
+        aoSucesso={() => {
+          setOsParaEntregar(null);
+          setOrdens(carregarOrdens());
+        }}
+      />
+
+      <ModalVisualizarAssinatura
+        aberto={Boolean(osParaVisualizarAssinatura)}
+        aoFechar={() => setOsParaVisualizarAssinatura(null)}
+        os={osParaVisualizarAssinatura}
+      />
     </Layout>
   );
 }

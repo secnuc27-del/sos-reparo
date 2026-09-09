@@ -13,9 +13,16 @@ import { ConsultaPage } from "./routes/consulta";
 import { HistoricoPage } from "./routes/historico";
 import { DashboardPage } from "./routes/dashboard";
 import { AcompanharPage } from "./routes/acompanhar";
+import { AssistentePage } from "./routes/assistente";
 
 const rootRoute = createRootRoute({
   component: RootLayout,
+  notFoundComponent: () => {
+    if (typeof window !== "undefined") {
+      window.location.hash = "#/";
+    }
+    return null;
+  },
 });
 
 const indexRoute = createRoute({
@@ -66,6 +73,12 @@ const acompanharRoute = createRoute({
   component: AcompanharPage,
 });
 
+const assistenteRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/assistente",
+  component: AssistentePage,
+});
+
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   clientesRoute,
@@ -75,4 +88,6 @@ export const routeTree = rootRoute.addChildren([
   consultaRoute,
   historicoRoute,
   acompanharRoute,
+  assistenteRoute,
 ]);
+

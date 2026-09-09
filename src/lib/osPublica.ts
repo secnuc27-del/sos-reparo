@@ -63,7 +63,7 @@ export function urlOSPublica(token: string): string {
 export function criarRegistroOSPublica(os: any, token?: string): PublicOSRecord {
   const numero = String(os.numero || "OS");
   return {
-    token: tokenOSPublica(numero, os.publicToken),
+    token: tokenOSPublica(numero, os.publicToken || token),
     numero,
     cliente: String(os.cliente || "Cliente"),
     equipamento: String(os.equipamento || `${os.marca || ""} ${os.modelo || ""}`).trim(),
@@ -87,6 +87,18 @@ export function criarRegistroOSPublica(os: any, token?: string): PublicOSRecord 
 
 export async function salvarOSPublica(registro: PublicOSRecord) {
   const mapa = lerMapaLocal();
+  const existente = mapa[registro.token];
+  
+  if (existente) {
+    if (existente.aprovacaoOrcamento && existente.aprovacaoOrcamento !== "pendente" && registro.aprovacaoOrcamento === "pendente") {
+      registro.aprovacaoOrcamento = existente.aprovacaoOrcamento;
+    }
+    if (existente.assinaturaEntrega && !registro.assinaturaEntrega) {
+      registro.assinaturaEntrega = existente.assinaturaEntrega;
+      registro.assinaturaEm = existente.assinaturaEm;
+    }
+  }
+
   mapa[registro.token] = registro;
   salvarMapaLocal(mapa);
   try {
@@ -130,16 +142,25 @@ export async function atualizarAprovacaoOS(token: string, aprovacaoOrcamento: Ap
 }
 
 export async function sincronizarOSPublicas(clientes: any[]) {
+  const mapa = lerMapaLocal();
+
   const registros = clientes
     .filter((cliente) => cliente?.os)
-    .map((cliente) => criarRegistroOSPublica({
-      ...cliente.os,
-      cliente: cliente.nome,
-      equipamento: `${cliente.os.marca} ${cliente.os.modelo}`.trim(),
-      publicToken: cliente.os.publicToken,
-    }, cliente.os.publicToken));
+    .map((cliente) => {
+      const registro = criarRegistroOSPublica({
+        ...cliente.os,
+        cliente: cliente.nome,
+        equipamento: `${cliente.os.marca} ${cliente.os.modelo}`.trim(),
+        publicToken: cliente.os.publicToken,
+      }, cliente.os.publicToken);
 
-  const mapa = lerMapaLocal();
+      // Preservar aprovação existente na nuvem
+      if (mapa[registro.token] && mapa[registro.token].aprovacaoOrcamento && mapa[registro.token].aprovacaoOrcamento !== "pendente") {
+        registro.aprovacaoOrcamento = mapa[registro.token].aprovacaoOrcamento;
+      }
+      return registro;
+    });
+
   registros.forEach((registro) => { mapa[registro.token] = registro; });
   salvarMapaLocal(mapa);
 

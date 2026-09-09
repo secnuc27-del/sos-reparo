@@ -3,8 +3,16 @@ import { History, Search, CheckCircle2, Calendar, User, Wrench, DollarSign, Pack
 import { useState, useEffect } from "react";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { MarcaLogo } from "@/components/MarcaLogo";
+import { useAuth } from "@/components/AuthProvider";
+import { Navigate } from "@tanstack/react-router";
 
 export function HistoricoPage() {
+  const { role } = useAuth();
+
+  if (role === "funcionario") {
+    return <Navigate to="/clientes" replace />;
+  }
+
   const [busca, setBusca] = useState("");
   const [historico, setHistorico] = useState<any[]>([]);
 

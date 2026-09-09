@@ -5,6 +5,7 @@ import { salvarClientesLocal } from "@/lib/localDados";
 import { salvarClienteFirebase, salvarEdicoesFirebase } from "@/lib/firebaseSync";
 import { SignatureCanvas } from "@/components/SignatureCanvas";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica } from "@/lib/osPublica";
+import { ordensIniciais } from "@/routes/ordens-servico";
 import { comprimirFoto } from "@/lib/fotos";
 import { MarcaLogo } from "@/components/MarcaLogo";
 import { useState, useEffect, useRef } from "react";
@@ -208,13 +209,19 @@ export function EquipamentosPage() {
   // Apply static edits on top of static data
   const eqIniciais = equipamentosIniciais.map(e => {
     const edit = staticEdits[e.id];
+    const osVinculada = ordensIniciais.find(o => o.equipamento === `${e.marca} ${e.modelo}`.trim());
     return {
       ...e,
       ...(edit || {}),
-      dataEntrada: undefined,
+      dataEntrada: osVinculada?.abertura || undefined,
+      dataRetirada: edit?.dataRetirada || osVinculada?.previsao || undefined,
+      valor: edit?.valor || osVinculada?.valor || undefined,
+      tecnico: edit?.tecnico || osVinculada?.tecnico || undefined,
+      servico: edit?.servico || osVinculada?.servico || undefined,
+      telefone: osVinculada?.telefone || undefined,
       fotoLocal: undefined,
       clientId: undefined,
-      numeroOS: undefined,
+      numeroOS: osVinculada?.numero || undefined,
     };
   });
 

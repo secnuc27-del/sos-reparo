@@ -12,11 +12,15 @@ import {
   LayoutDashboard,
   CheckCircle2,
   Menu,
+  Sparkles,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useAuth } from "./AuthProvider";
 import { useTheme } from "./ThemeProvider";
 import { logoUrl } from "@/lib/logo";
+import { useChatNaoLidas } from "@/lib/chat";
+import { useNovidades } from "@/lib/novidades";
+import { ModalAtualizacoes } from "./ModalAtualizacoes";
 
 const navItems = [
   { to: "/", label: "Visão Geral", icon: LayoutDashboard },
@@ -30,12 +34,15 @@ const navItems = [
 
 export function Layout({ children }: { children?: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { logout, role } = useAuth();
   const current = navItems.find((i) => 
     i.to === "/" ? pathname === "/" : pathname.startsWith(i.to)
   );
-  const { logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [menuAberto, setMenuAberto] = useState(false);
+  const { totalNaoLidas } = useChatNaoLidas("tecnico");
+  const { versaoAtual, temNovidade } = useNovidades();
+  const [modalNovidades, setModalNovidades] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -56,6 +63,9 @@ export function Layout({ children }: { children?: ReactNode }) {
 
         <nav className="flex-1 space-y-1 px-3 py-4">
           {navItems.map((item) => {
+            if (role === "funcionario" && (item.to === "/" || item.to === "/historico")) {
+              return null;
+            }
             const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
             return (
               <Link
@@ -70,18 +80,23 @@ export function Layout({ children }: { children?: ReactNode }) {
                 }`}
               >
                 <item.icon className={`h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.to === "/ordens-servico" && totalNaoLidas > 0 && (
+                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-black text-white shadow-sm animate-in zoom-in-50 duration-200">
+                    {totalNaoLidas > 9 ? "9+" : totalNaoLidas}
+                  </span>
+                )}
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border px-4 py-4">
+        <div className="border-t border-sidebar-border px-4 py-3">
           <div className="flex items-center gap-3 rounded-lg px-2 py-1">
             <CircleUser className="h-7 w-7 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">Técnico</p>
-              <p className="truncate text-xs text-muted-foreground">admin@sosreparo.com</p>
+              <p className="truncate text-sm font-medium text-foreground capitalize">{role || "Técnico"}</p>
+              <p className="truncate text-xs text-muted-foreground">SOS Reparo</p>
             </div>
             <button
               onClick={logout}
@@ -90,6 +105,22 @@ export function Layout({ children }: { children?: ReactNode }) {
             >
               <LogOut className="h-4 w-4" />
             </button>
+          </div>
+
+          {/* Versão lá embaixo na barra lateral */}
+          <div className="mt-2.5 pt-2 border-t border-sidebar-border/50 flex items-center justify-between px-1">
+            <button
+              onClick={() => setModalNovidades(true)}
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors group"
+              title="Ver o que há de novo nesta versão"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-cyan-500 group-hover:rotate-12 transition-transform" />
+              <span className="font-semibold">Versão {versaoAtual}</span>
+              {temNovidade && (
+                <span className="h-2 w-2 rounded-full bg-blue-500 ring-2 ring-sidebar animate-pulse" />
+              )}
+            </button>
+            <span className="text-[10px] text-muted-foreground/60">SOS Reparo</span>
           </div>
         </div>
       </aside>
@@ -138,14 +169,38 @@ export function Layout({ children }: { children?: ReactNode }) {
                 </span>
               </span>
             </label>
-            <button className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent">
+            <button
+              onClick={() => setModalNovidades(true)}
+              title={
+                temNovidade
+                  ? `Nova atualização disponível (${versaoAtual}) - Clique para ver`
+                  : totalNaoLidas > 0
+                  ? `${totalNaoLidas} mensagem(ns) no chat`
+                  : `Atualizações do Sistema (${versaoAtual})`
+              }
+              className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/40"
+            >
               <Bell className="h-4 w-4" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
+              {temNovidade ? (
+                /* Ponto azul de novidades como solicitado na imagem */
+                <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-blue-600 ring-2 ring-card shadow-sm animate-pulse" />
+              ) : totalNaoLidas > 0 ? (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-sm ring-2 ring-card animate-in zoom-in-50 duration-200">
+                  {totalNaoLidas > 9 ? "9+" : totalNaoLidas}
+                </span>
+              ) : null}
             </button>
           </div>
         </header>
-        <main key={pathname} className="page-transition min-w-0 flex-1 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">{children ?? <Outlet />}</main>
+        <main key={pathname} className="page-transition min-w-0 flex-1 overflow-x-hidden px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+          {children ?? <Outlet />}
+        </main>
       </div>
+
+      <ModalAtualizacoes
+        aberta={modalNovidades}
+        aoFechar={() => setModalNovidades(false)}
+      />
     </div>
   );
 }
