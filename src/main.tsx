@@ -1,4 +1,4 @@
-import { StrictMode, useEffect } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter, createHashHistory } from "@tanstack/react-router";
 import { routeTree } from "./routeTree";
@@ -23,7 +23,15 @@ declare module "@tanstack/react-router" {
 
 function App() {
   const { isAuthenticated } = useAuth();
-  const isPublicTracking = window.location.hash.startsWith("#/acompanhar/");
+  const [hash, setHash] = useState(() => (typeof window !== "undefined" ? window.location.hash : ""));
+
+  useEffect(() => {
+    const onHashChange = () => setHash(window.location.hash);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  const isPublicTracking = hash.toLowerCase().startsWith("#/acompanhar");
 
   useEffect(() => {
     if (isAuthenticated && !isPublicTracking) {

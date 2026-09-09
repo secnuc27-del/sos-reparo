@@ -63,45 +63,59 @@ export function AcompanharPage() {
   }, [token]);
 
   useEffect(() => {
-    // 1. Carga inicial
-    void carregar(false);
+    // 1. Timeout de segurança para celular (nunca fica preso no spinner)
+    const timerSeguranca = setTimeout(() => {
+      setCarregando(false);
+    }, 2500);
 
-    // 2. Conexão direta em tempo real com o Firebase (sem recarregar tela nem zerar campos)
-    let unsubscribe = () => {};
-    try {
-      const osRef = ref(database, `publicOS/${token}`);
-      unsubscribe = onValue(
-        osRef,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const dados = snapshot.val() as PublicOSRecord;
-            setOs((prev) => {
-              if (!prev) return dados;
-              const mudou =
-                prev.status !== dados.status ||
-                prev.aprovacaoOrcamento !== dados.aprovacaoOrcamento ||
-                prev.valor !== dados.valor ||
-                prev.fotoAntes !== dados.fotoAntes ||
-                prev.fotoDepois !== dados.fotoDepois ||
-                prev.assinaturaEntrega !== dados.assinaturaEntrega ||
-                JSON.stringify((prev as any).avaliacao) !== JSON.stringify((dados as any).avaliacao);
-              return mudou ? { ...prev, ...dados } : prev;
-            });
-            setCarregando(false);
+    // 2. Carga inicial dos dados
+    void carregar(false).finally(() => {
+      clearTimeout(timerSeguranca);
+    });
+
+    // 3. Conexão direta em tempo real com o Firebase
+    const unsubs: (() => void)[] = [];
+    const tokenNorm = token.startsWith("os-") ? token : `os-${token.toLowerCase()}`;
+    const chavesParaOuvir = new Set([token, tokenNorm]);
+
+    chavesParaOuvir.forEach((ch) => {
+      try {
+        const osRef = ref(database, `publicOS/${ch}`);
+        const unsub = onValue(
+          osRef,
+          (snapshot) => {
+            if (snapshot.exists()) {
+              clearTimeout(timerSeguranca);
+              const dados = snapshot.val() as PublicOSRecord;
+              setOs((prev) => {
+                if (!prev) return dados;
+                const mudou =
+                  prev.status !== dados.status ||
+                  prev.aprovacaoOrcamento !== dados.aprovacaoOrcamento ||
+                  prev.valor !== dados.valor ||
+                  prev.fotoAntes !== dados.fotoAntes ||
+                  prev.fotoDepois !== dados.fotoDepois ||
+                  prev.assinaturaEntrega !== dados.assinaturaEntrega ||
+                  JSON.stringify((prev as any).avaliacao) !== JSON.stringify((dados as any).avaliacao);
+                return mudou ? { ...prev, ...dados } : prev;
+              });
+              setCarregando(false);
+            }
+          },
+          (err) => {
+            console.warn("Aviso na sincronização de OS em tempo real:", err);
           }
-        },
-        (err) => {
-          console.warn("Erro ao sincronizar OS em tempo real:", err);
-        }
-      );
-    } catch (e) {
-      console.warn("Firebase listener não inicializado:", e);
-    }
+        );
+        unsubs.push(unsub);
+      } catch (e) {
+        console.warn("Firebase listener não inicializado para " + ch, e);
+      }
+    });
 
-    // 3. Atualizações locais quando o mesmo navegador alterar a OS em outra aba (sem loop)
+    // 4. Atualizações locais quando o mesmo navegador alterar a OS em outra aba
     const handleAtualizacaoLocal = () => {
       const mapa = mapaOSPublicasLocal();
-      const local = mapa[token];
+      const local = mapa[token] || mapa[tokenNorm];
       if (local) {
         setOs((prev) => {
           if (!prev) return local;
@@ -122,7 +136,8 @@ export function AcompanharPage() {
     window.addEventListener("sos-firebase-update", handleAtualizacaoLocal);
 
     return () => {
-      unsubscribe();
+      clearTimeout(timerSeguranca);
+      unsubs.forEach((u) => u());
       window.removeEventListener("storage", handleAtualizacaoLocal);
       window.removeEventListener("sos-firebase-update", handleAtualizacaoLocal);
     };

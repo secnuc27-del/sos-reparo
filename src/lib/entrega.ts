@@ -59,15 +59,17 @@ export async function confirmarEntregaComAssinatura(
     const edicoes: Record<string, any> = staticSalvo ? JSON.parse(staticSalvo) : {};
 
     const chaves = Object.keys(edicoes);
+    const numSemPrefixo = numeroOS.replace(/^OS-/i, "");
     const keyMatch =
       chaves.find(
         (k) =>
           k === numeroOS ||
+          k === numSemPrefixo ||
           `OS-${k}` === numeroOS ||
           numeroOS.includes(k)
       ) || numeroOS;
 
-    edicoes[keyMatch] = {
+    const payloadEdicao = {
       ...(edicoes[keyMatch] || {}),
       status: "Entregue",
       assinaturaEntrega: assinaturaBase64,
@@ -75,6 +77,13 @@ export async function confirmarEntregaComAssinatura(
       dataRetirada: hoje,
       horaRetirada: agoraHora,
     };
+
+    edicoes[keyMatch] = payloadEdicao;
+    edicoes[numeroOS] = payloadEdicao;
+    if (numSemPrefixo !== numeroOS) {
+      edicoes[numSemPrefixo] = payloadEdicao;
+    }
+
     localStorage.setItem("sos_eq_static_edits", JSON.stringify(edicoes));
     void salvarEdicoesFirebase(edicoes);
   } catch (e) {
@@ -83,33 +92,54 @@ export async function confirmarEntregaComAssinatura(
 
   // 3. Atualiza publicOS no Firebase e localStorage
   const tokenFinal = tokenPublico || tokenOSPublica(numeroOS);
+  const tokenNorm = tokenOSPublica(numeroOS);
+  const payloadPublico = {
+    status: "Entregue",
+    assinaturaEntrega: assinaturaBase64,
+    assinaturaEm: agoraISO,
+    dataRetirada: hoje,
+    atualizadaEm: agoraISO,
+  };
+
   try {
     const publicSalvo = localStorage.getItem("sos_public_os");
     const mapaPublico = publicSalvo ? JSON.parse(publicSalvo) : {};
-    if (mapaPublico[tokenFinal]) {
-      mapaPublico[tokenFinal] = {
-        ...mapaPublico[tokenFinal],
-        status: "Entregue",
-        assinaturaEntrega: assinaturaBase64,
-        assinaturaEm: agoraISO,
-        dataRetirada: hoje,
-        atualizadaEm: agoraISO,
+
+    mapaPublico[tokenFinal] = {
+      ...(mapaPublico[tokenFinal] || {}),
+      ...payloadPublico,
+    };
+
+    if (tokenNorm && tokenNorm !== tokenFinal) {
+      mapaPublico[tokenNorm] = {
+        ...(mapaPublico[tokenNorm] || {}),
+        ...payloadPublico,
       };
-      localStorage.setItem("sos_public_os", JSON.stringify(mapaPublico));
     }
 
-    await update(ref(database, `publicOS/${tokenFinal}`), {
-      status: "Entregue",
-      assinaturaEntrega: assinaturaBase64,
-      assinaturaEm: agoraISO,
-      dataRetirada: hoje,
-      atualizadaEm: agoraISO,
-    });
+    localStorage.setItem("sos_public_os", JSON.stringify(mapaPublico));
   } catch (e) {
-    console.warn("Erro ao atualizar publicOS com assinatura:", e);
+    console.warn("Erro ao atualizar cache local publicOS:", e);
   }
 
-  // 4. Notifica todas as abas e componentes
+  // 4. Notifica todas as abas e componentes imediatamente
   window.dispatchEvent(new CustomEvent("sos-firebase-update"));
   window.dispatchEvent(new Event("storage"));
+
+  // 5. Atualiza Firebase em segundo plano com timeout de segurança (máx 2.5s)
+  try {
+    const tarefas = [
+      update(ref(database, `publicOS/${tokenFinal}`), payloadPublico),
+    ];
+    if (tokenNorm && tokenNorm !== tokenFinal) {
+      tarefas.push(update(ref(database, `publicOS/${tokenNorm}`), payloadPublico));
+    }
+
+    await Promise.race([
+      Promise.allSettled(tarefas),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]);
+  } catch (e) {
+    console.warn("Aviso na atualização remota da publicOS:", e);
+  }
 }

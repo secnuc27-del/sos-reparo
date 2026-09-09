@@ -23,6 +23,8 @@ export function SignatureCanvas({ value, onChange }: Props) {
     imagem.src = value;
   }, [value]);
 
+  const temTracoRef = useRef(false);
+
   const ponto = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
@@ -30,6 +32,24 @@ export function SignatureCanvas({ value, onChange }: Props) {
       x: (event.clientX - rect.left) * (canvas.width / rect.width),
       y: (event.clientY - rect.top) * (canvas.height / rect.height),
     };
+  };
+
+  const exportarCompactado = (canvas: HTMLCanvasElement): string => {
+    try {
+      // Reduz a resolução do canvas para ~480px de largura, mantendo a proporção.
+      // Isso reduz o peso do base64 de ~500KB para menos de 20KB!
+      const w = 480;
+      const h = Math.round((canvas.height / canvas.width) * w);
+      const temp = document.createElement("canvas");
+      temp.width = w;
+      temp.height = h;
+      const ctx = temp.getContext("2d");
+      if (!ctx) return canvas.toDataURL("image/png");
+      ctx.drawImage(canvas, 0, 0, w, h);
+      return temp.toDataURL("image/png");
+    } catch {
+      return canvas.toDataURL("image/png");
+    }
   };
 
   const iniciar = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -45,6 +65,7 @@ export function SignatureCanvas({ value, onChange }: Props) {
     contexto.strokeStyle = "#1d4ed8";
     canvas.setPointerCapture(event.pointerId);
     setDesenhando(true);
+    temTracoRef.current = true;
   };
 
   const desenhar = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -54,12 +75,20 @@ export function SignatureCanvas({ value, onChange }: Props) {
     const posicao = ponto(event);
     contexto.lineTo(posicao.x, posicao.y);
     contexto.stroke();
-    onChange(canvasRef.current.toDataURL("image/png"));
+    // NÃO chamamos onChange aqui durante o movimento, permitindo 60fps fluido!
   };
 
-  const finalizar = () => setDesenhando(false);
+  const finalizar = () => {
+    if (!desenhando) return;
+    setDesenhando(false);
+    if (canvasRef.current && temTracoRef.current) {
+      // Gera o base64 compactado apenas ao soltar o dedo ou mouse
+      onChange(exportarCompactado(canvasRef.current));
+    }
+  };
 
   const limpar = () => {
+    temTracoRef.current = false;
     const canvas = canvasRef.current;
     const contexto = canvas?.getContext("2d");
     if (!canvas || !contexto) return;

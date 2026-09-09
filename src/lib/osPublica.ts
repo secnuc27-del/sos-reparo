@@ -1,6 +1,8 @@
 import { get, ref, set, update } from "firebase/database";
 import { database } from "./firebase";
 
+import { ordensDeServico, equipamentos } from "./dados";
+
 export type AprovacaoOrcamento = "pendente" | "aprovado" | "recusado";
 
 export type PublicOSRecord = {
@@ -20,7 +22,7 @@ export type PublicOSRecord = {
   fotoDepois: string;
   defeito: string;
   aprovacaoOrcamento: AprovacaoOrcamento;
-  assinaturaEntrega: boolean;
+  assinaturaEntrega: boolean | string;
   assinaturaEm: string;
   atualizadaEm: string;
 };
@@ -53,7 +55,13 @@ export function gerarTokenOS(): string {
 }
 
 export function tokenOSPublica(numero: string, token?: string): string {
-  return token || `os-${String(numero).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  if (token) return token;
+  const limpo = String(numero || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  // Evita duplicações como "os-os-2026-0142"
+  return limpo.startsWith("os-") ? limpo : `os-${limpo}`;
 }
 
 export function urlOSPublica(token: string): string {
@@ -82,7 +90,7 @@ export function criarRegistroOSPublica(os: any, token?: string): PublicOSRecord 
     fotoDepois: String(os.fotoDepois || ""),
     defeito: String(os.defeito || ""),
     aprovacaoOrcamento: os.aprovacaoOrcamento || "pendente",
-    assinaturaEntrega: isEntregue ? Boolean(os.assinaturaEntrega) : false,
+    assinaturaEntrega: isEntregue ? (os.assinaturaEntrega || true) : false,
     assinaturaEm: isEntregue ? String(os.assinaturaEm || "") : "",
     atualizadaEm: new Date().toISOString(),
   };
@@ -113,33 +121,170 @@ export async function salvarOSPublica(registro: PublicOSRecord) {
   const novoStr = JSON.stringify(registro);
 
   mapa[registro.token] = registro;
+  const tokenNorm = tokenOSPublica(registro.numero);
+  if (tokenNorm !== registro.token) {
+    mapa[tokenNorm] = registro;
+  }
+
   if (anteriorStr !== novoStr) {
     salvarMapaLocal(mapa);
   }
 
   try {
     await set(ref(database, `${PUBLIC_PATH}/${registro.token}`), registro);
+    if (tokenNorm !== registro.token) {
+      void set(ref(database, `${PUBLIC_PATH}/${tokenNorm}`), registro).catch(() => {});
+    }
   } catch (error) {
     console.warn("Não foi possível publicar a OS no Firebase:", error);
   }
 }
 
-export async function buscarOSPublica(token: string): Promise<PublicOSRecord | null> {
-  try {
-    const snapshot = await get(ref(database, `${PUBLIC_PATH}/${token}`));
-    if (snapshot.exists()) {
-      const registro = snapshot.val() as PublicOSRecord;
-      const mapa = lerMapaLocal();
-      if (JSON.stringify(mapa[token]) !== JSON.stringify(registro)) {
-        mapa[token] = registro;
-        salvarMapaLocal(mapa);
-      }
-      return registro;
-    }
-  } catch (error) {
-    console.warn("Firebase indisponível para consulta pública:", error);
+function gerarChavesCandidatas(token: string): string[] {
+  const t = String(token || "").trim();
+  const c = new Set<string>();
+  if (!t) return [];
+  c.add(t);
+  c.add(t.toLowerCase());
+
+  if (/^os-os-/i.test(t)) {
+    c.add(t.replace(/^os-os-/i, "os-"));
+    c.add(t.replace(/^os-os-/i, "OS-"));
   }
-  return lerMapaLocal()[token] || null;
+
+  if (/^os-/i.test(t)) {
+    const semOs = t.replace(/^os-+/i, "");
+    c.add(semOs);
+    c.add(`OS-${semOs}`);
+    c.add(`os-os-${semOs}`);
+  } else {
+    c.add(`os-${t.toLowerCase()}`);
+  }
+
+  return Array.from(c);
+}
+
+export async function buscarOSPublica(token: string): Promise<PublicOSRecord | null> {
+  const candidatos = gerarChavesCandidatas(token);
+
+  // 1. Tenta buscar no Firebase em tempo hábil (timeout de 2.5s)
+  for (const chave of candidatos) {
+    try {
+      const snapshot = await Promise.race([
+        get(ref(database, `${PUBLIC_PATH}/${chave}`)),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+      ]);
+
+      if (snapshot && snapshot.exists()) {
+        const registro = snapshot.val() as PublicOSRecord;
+        const mapa = lerMapaLocal();
+        mapa[token] = registro;
+        mapa[registro.token] = registro;
+        salvarMapaLocal(mapa);
+        return registro;
+      }
+    } catch {
+      // continua para o próximo candidato
+    }
+  }
+
+  // 2. Busca no mapa público local
+  const mapa = lerMapaLocal();
+  for (const chave of candidatos) {
+    if (mapa[chave]) {
+      return mapa[chave];
+    }
+  }
+
+  // 3. Busca nas OSs salvas em sos_clientes
+  try {
+    const clientesSalvos = localStorage.getItem("sos_clientes");
+    if (clientesSalvos) {
+      const lista = JSON.parse(clientesSalvos);
+      for (const item of lista) {
+        if (!item?.os) continue;
+        const osNum = String(item.os.numero || "");
+        const osTok = String(item.os.publicToken || "");
+        if (
+          candidatos.includes(osTok) ||
+          candidatos.includes(osNum) ||
+          candidatos.includes(tokenOSPublica(osNum))
+        ) {
+          return criarRegistroOSPublica({
+            ...item.os,
+            cliente: item.nome,
+            equipamento: `${item.os.marca || ""} ${item.os.modelo || ""}`.trim(),
+            publicToken: item.os.publicToken || token,
+          }, token);
+        }
+      }
+    }
+  } catch {}
+
+  // 4. Fallback para OSs padrão/iniciais (ex: celular abrindo OS-2026-0142 pela primeira vez)
+  const ordemEstatica = ordensDeServico.find((o) => {
+    const num = String(o.numero);
+    const tok = tokenOSPublica(num);
+    return (
+      candidatos.includes(num) ||
+      candidatos.includes(tok) ||
+      candidatos.includes(`os-os-${num.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`) ||
+      candidatos.some((c) => num.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(num.toLowerCase()))
+    );
+  });
+
+  if (ordemEstatica) {
+    let staticEdits: Record<string, any> = {};
+    try {
+      const staticSalvo = localStorage.getItem("sos_eq_static_edits");
+      if (staticSalvo) staticEdits = JSON.parse(staticSalvo);
+    } catch {}
+
+    const eq = equipamentos.find(
+      (e) =>
+        e.codigoCliente === ordemEstatica.codigoCliente ||
+        `${e.marca} ${e.modelo}`.trim() === ordemEstatica.equipamento
+    );
+
+    const edit =
+      (eq ? staticEdits[eq.id] : null) ||
+      staticEdits[ordemEstatica.numero] ||
+      staticEdits[ordemEstatica.numero.replace(/^OS-/i, "")] ||
+      {};
+
+    const statusFinal = edit.status || ordemEstatica.status;
+    const isEntregue = statusFinal === "Entregue";
+
+    const registro: PublicOSRecord = {
+      token: tokenOSPublica(ordemEstatica.numero),
+      numero: ordemEstatica.numero,
+      cliente: ordemEstatica.cliente,
+      equipamento: ordemEstatica.equipamento,
+      tipo: eq?.tipo || "Aparelho",
+      servico: ordemEstatica.servico,
+      tecnico: ordemEstatica.tecnico,
+      status: statusFinal,
+      valor: edit.valor || ordemEstatica.valor,
+      dataEntrada: ordemEstatica.etapas?.[0]?.data?.split(" ")[0] || "20/08/2026",
+      previsao: ordemEstatica.previsao,
+      dataRetirada: edit.dataRetirada || "",
+      fotoAntes: edit.fotoAntes || "",
+      fotoDepois: edit.fotoDepois || "",
+      defeito: eq?.defeito || ordemEstatica.servico,
+      aprovacaoOrcamento: edit.aprovacaoOrcamento || "pendente",
+      assinaturaEntrega: isEntregue ? (edit.assinaturaEntrega || true) : false,
+      assinaturaEm: isEntregue ? (edit.assinaturaEm || "") : "",
+      atualizadaEm: new Date().toISOString(),
+    };
+
+    mapa[token] = registro;
+    mapa[registro.token] = registro;
+    salvarMapaLocal(mapa);
+
+    return registro;
+  }
+
+  return null;
 }
 
 export async function atualizarAprovacaoOS(token: string, aprovacaoOrcamento: AprovacaoOrcamento) {

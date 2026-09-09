@@ -33,10 +33,13 @@ export function ModalAssinaturaEntrega({
     setErro("");
 
     try {
-      await confirmarEntregaComAssinatura(os.numero, assinatura, os.publicToken);
+      const tokenPublico = os.publicToken || os.token;
+      await confirmarEntregaComAssinatura(os.numero, assinatura, tokenPublico);
+      setAssinatura("");
       aoSucesso?.();
       aoFechar();
     } catch (e) {
+      console.error("Falha ao registrar entrega:", e);
       setErro("Ocorreu um erro ao salvar a assinatura. Tente novamente.");
     } finally {
       setSalvando(false);

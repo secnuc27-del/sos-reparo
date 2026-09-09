@@ -294,7 +294,7 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
     const registro = criarRegistroOSPublica({
       ...os,
       status: novoStatus,
-      assinaturaEntrega: isEntregue ? Boolean(os.assinaturaEntrega) : false,
+      assinaturaEntrega: isEntregue ? (os.assinaturaEntrega || true) : false,
       assinaturaEm: isEntregue ? os.assinaturaEm : "",
       publicToken: token,
     }, token);
