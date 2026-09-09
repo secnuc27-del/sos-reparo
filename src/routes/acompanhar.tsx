@@ -278,9 +278,7 @@ export function AcompanharPage() {
             </div>
           </section>
 
-          <section className="mt-8 mb-5">
-            <ChatOS token={os.token} remetente="cliente" />
-          </section>
+
 
           <div className="mt-5 flex items-center justify-between rounded-2xl border border-slate-800/80 bg-slate-950/60 px-4 py-3 text-xs text-slate-400">
             <div className="flex items-center gap-2">

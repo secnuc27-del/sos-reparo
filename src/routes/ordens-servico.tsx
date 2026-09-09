@@ -24,8 +24,7 @@ import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { QRCodeSVG } from "qrcode.react";
-import { ChatOS } from "@/components/ChatOS";
-import { marcarChatComoLido, useChatNaoLidas } from "@/lib/chat";
+import { marcarChatComoLido } from "@/lib/chat";
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica, urlOSPublica } from "@/lib/osPublica";
 import { MarcaLogo } from "@/components/MarcaLogo";
 import { ModalAssinaturaEntrega } from "@/components/ModalAssinaturaEntrega";
@@ -159,8 +158,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [qrOs, setQrOs] = useState<{ registro: any; link: string } | null>(null);
   const [linkCopiado, setLinkCopiado] = useState(false);
-  const [chatOs, setChatOs] = useState<any>(null);
-  const { obterContagem } = useChatNaoLidas("tecnico");
   const [osParaEntregar, setOsParaEntregar] = useState<any>(null);
   const [osParaVisualizarAssinatura, setOsParaVisualizarAssinatura] = useState<any>(null);
 
@@ -600,20 +597,6 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
         document.body,
       )}
 
-      {chatOs && typeof document !== "undefined" && createPortal(
-        <div className="modal-backdrop fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
-          <div className="modal-panel relative w-full max-w-lg rounded-2xl bg-card shadow-2xl">
-            <button
-              onClick={() => setChatOs(null)}
-              className="absolute right-4 top-4 z-10 rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <ChatOS token={tokenOSPublica(chatOs.numero, chatOs.publicToken)} remetente="tecnico" />
-          </div>
-        </div>,
-        document.body
-      )}
 
       <ModalAssinaturaEntrega
         aberto={Boolean(osParaEntregar)}
