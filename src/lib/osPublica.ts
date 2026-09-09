@@ -61,7 +61,10 @@ export function urlOSPublica(token: string): string {
 }
 
 export function criarRegistroOSPublica(os: any, token?: string): PublicOSRecord {
-  const numero = String(os.numero || "OS");
+  const numero = String(os.numero || os.numeroOS || "OS");
+  const statusOS = String(os.status || os.statusOS || "Aguardando");
+  const isEntregue = statusOS === "Entregue";
+
   return {
     token: tokenOSPublica(numero, os.publicToken || token),
     numero,
@@ -70,7 +73,7 @@ export function criarRegistroOSPublica(os: any, token?: string): PublicOSRecord 
     tipo: String(os.tipo || os.tipoAparel || "Aparelho"),
     servico: String(os.servico || "Análise técnica"),
     tecnico: String(os.tecnico || "Equipe SOS Reparo"),
-    status: String(os.status || os.statusOS || "Aguardando"),
+    status: statusOS,
     valor: String(os.valor || "A orçar"),
     dataEntrada: String(os.abertura || os.dataEntrada || ""),
     previsao: String(os.previsao || os.dataRetirada || ""),
@@ -79,8 +82,8 @@ export function criarRegistroOSPublica(os: any, token?: string): PublicOSRecord 
     fotoDepois: String(os.fotoDepois || ""),
     defeito: String(os.defeito || ""),
     aprovacaoOrcamento: os.aprovacaoOrcamento || "pendente",
-    assinaturaEntrega: Boolean(os.assinaturaEntrega),
-    assinaturaEm: String(os.assinaturaEm || ""),
+    assinaturaEntrega: isEntregue ? Boolean(os.assinaturaEntrega) : false,
+    assinaturaEm: isEntregue ? String(os.assinaturaEm || "") : "",
     atualizadaEm: new Date().toISOString(),
   };
 }
@@ -93,14 +96,27 @@ export async function salvarOSPublica(registro: PublicOSRecord) {
     if (existente.aprovacaoOrcamento && existente.aprovacaoOrcamento !== "pendente" && registro.aprovacaoOrcamento === "pendente") {
       registro.aprovacaoOrcamento = existente.aprovacaoOrcamento;
     }
-    if (existente.assinaturaEntrega && !registro.assinaturaEntrega) {
+    // Preserva assinatura existente SOMENTE se o novo status ainda for "Entregue"
+    if (registro.status === "Entregue" && existente.assinaturaEntrega && !registro.assinaturaEntrega) {
       registro.assinaturaEntrega = existente.assinaturaEntrega;
       registro.assinaturaEm = existente.assinaturaEm;
     }
   }
 
+  // Se o status NÃO for "Entregue", cancela e limpa a assinatura de entrega
+  if (registro.status !== "Entregue") {
+    registro.assinaturaEntrega = false;
+    registro.assinaturaEm = "";
+  }
+
+  const anteriorStr = JSON.stringify(mapa[registro.token]);
+  const novoStr = JSON.stringify(registro);
+
   mapa[registro.token] = registro;
-  salvarMapaLocal(mapa);
+  if (anteriorStr !== novoStr) {
+    salvarMapaLocal(mapa);
+  }
+
   try {
     await set(ref(database, `${PUBLIC_PATH}/${registro.token}`), registro);
   } catch (error) {
@@ -114,8 +130,10 @@ export async function buscarOSPublica(token: string): Promise<PublicOSRecord | n
     if (snapshot.exists()) {
       const registro = snapshot.val() as PublicOSRecord;
       const mapa = lerMapaLocal();
-      mapa[token] = registro;
-      salvarMapaLocal(mapa);
+      if (JSON.stringify(mapa[token]) !== JSON.stringify(registro)) {
+        mapa[token] = registro;
+        salvarMapaLocal(mapa);
+      }
       return registro;
     }
   } catch (error) {

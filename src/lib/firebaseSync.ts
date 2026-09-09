@@ -253,8 +253,12 @@ function iniciarListeners() {
       }
 
       if (clientesPendentes.length > 0) limparClientesPendentes();
-      gravarLocal(CLIENTES_STORAGE_KEY, clientesRemotos);
-      avisarAtualizacao(clientesRemotos);
+      const localStr = JSON.stringify(lerLocal(CLIENTES_STORAGE_KEY));
+      const remotoStr = JSON.stringify(clientesRemotos);
+      if (localStr !== remotoStr) {
+        gravarLocal(CLIENTES_STORAGE_KEY, clientesRemotos);
+        avisarAtualizacao(clientesRemotos);
+      }
       avisarStatus("conectado");
     }, (error) => {
       avisarStatus("offline");
@@ -262,8 +266,13 @@ function iniciarListeners() {
     }),
     onValue(ref(database, EDICOES_PATH), (snapshot) => {
       if (!snapshot.exists()) return;
-      gravarLocal(EDICOES_STORAGE_KEY, snapshot.val());
-      avisarAtualizacao();
+      const valorRemoto = snapshot.val();
+      const localStr = JSON.stringify(lerLocal(EDICOES_STORAGE_KEY));
+      const remotoStr = JSON.stringify(valorRemoto);
+      if (localStr !== remotoStr) {
+        gravarLocal(EDICOES_STORAGE_KEY, valorRemoto);
+        avisarAtualizacao();
+      }
     }, (error) => {
       avisarStatus("offline");
       console.warn("Firebase edições indisponível:", error.message);
@@ -278,9 +287,11 @@ function iniciarListeners() {
           ? adicionarPendentes(clientesLocais, clientesPendentes)
           : clientesLocais;
         const atualizados = mesclarAprovacoesPublicas(baseProtegida, mapaPublico);
-        if (atualizados !== clientesLocais) gravarLocal(CLIENTES_STORAGE_KEY, atualizados);
+        if (JSON.stringify(atualizados) !== JSON.stringify(clientesLocais)) {
+          gravarLocal(CLIENTES_STORAGE_KEY, atualizados);
+          avisarAtualizacao(atualizados);
+        }
       }
-      avisarAtualizacao();
     }, (error) => {
       console.warn("Firebase público indisponível:", error.message);
     }),

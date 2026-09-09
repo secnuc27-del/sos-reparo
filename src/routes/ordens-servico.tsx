@@ -26,6 +26,7 @@ import { equipamentos as equipamentosIniciais } from "@/lib/dados";
 import { QRCodeSVG } from "qrcode.react";
 
 import { criarRegistroOSPublica, salvarOSPublica, tokenOSPublica, urlOSPublica } from "@/lib/osPublica";
+import { salvarClienteFirebase, salvarEdicoesFirebase, salvarClientesLocal } from "@/lib/firebaseSync";
 import { MarcaLogo } from "@/components/MarcaLogo";
 import { ModalAssinaturaEntrega } from "@/components/ModalAssinaturaEntrega";
 import { ModalVisualizarAssinatura } from "@/components/ModalVisualizarAssinatura";
@@ -204,11 +205,12 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
       const eq = equipamentosIniciais.find(
         (e) => `${e.marca} ${e.modelo}`.trim() === o.equipamento
       );
-      const staticEdit = eq ? staticEdits[eq.id] || {} : {};
+      const staticEdit = (eq ? staticEdits[eq.id] : null) || staticEdits[o.numero] || {};
       let overrideStatus = o.status;
-      if (eq && staticEdits[eq.id]) {
-        overrideStatus = staticEdits[eq.id].status || o.status;
+      if (staticEdit.status) {
+        overrideStatus = staticEdit.status;
       }
+      const isEntregue = overrideStatus === "Entregue";
       return {
         ...o,
         status: overrideStatus,
@@ -216,8 +218,8 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
         fotoDepois: staticEdit.fotoDepois || "",
         publicToken: tokenOSPublica(o.numero),
         aprovacaoOrcamento: staticEdit.aprovacaoOrcamento || "pendente",
-        assinaturaEntrega: staticEdit.assinaturaEntrega || "",
-        assinaturaEm: staticEdit.assinaturaEm || "",
+        assinaturaEntrega: isEntregue ? (staticEdit.assinaturaEntrega || "") : "",
+        assinaturaEm: isEntregue ? (staticEdit.assinaturaEm || "") : "",
         dataEntradaDate: parseDate(o.abertura),
       };
     });
@@ -229,6 +231,79 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
     );
 
     return finalSort;
+  };
+
+  const alterarStatusOS = (os: any, novoStatus: string) => {
+    if (os.status === novoStatus) return;
+
+    // Se escolheu marcar como Entregue e não tem assinatura, abre modal de assinatura
+    if (novoStatus === "Entregue" && !os.assinaturaEntrega) {
+      setOsParaEntregar(os);
+      return;
+    }
+
+    const isEntregue = novoStatus === "Entregue";
+
+    // 1. Cliente local
+    if (os.clienteId) {
+      try {
+        const salvo = localStorage.getItem("sos_clientes");
+        if (salvo) {
+          const clientes = JSON.parse(salvo);
+          const novos = clientes.map((c: any) => {
+            if (c.id === os.clienteId && c.os) {
+              return {
+                ...c,
+                os: {
+                  ...c.os,
+                  statusOS: novoStatus,
+                  assinaturaEntrega: isEntregue ? (c.os.assinaturaEntrega || "") : "",
+                  assinaturaEm: isEntregue ? (c.os.assinaturaEm || new Date().toISOString()) : "",
+                }
+              };
+            }
+            return c;
+          });
+          salvarClientesLocal(novos);
+          const clienteAtualizado = novos.find((c: any) => c.id === os.clienteId);
+          if (clienteAtualizado) void salvarClienteFirebase(clienteAtualizado);
+        }
+      } catch {}
+    } else {
+      // 2. OS estática
+      try {
+        const staticSalvo = localStorage.getItem("sos_eq_static_edits");
+        const edicoes = staticSalvo ? JSON.parse(staticSalvo) : {};
+        const eq = equipamentosIniciais.find((e) => `${e.marca} ${e.modelo}`.trim() === os.equipamento);
+        const eqId = eq ? eq.id : os.id;
+        const dados = {
+          ...(edicoes[eqId] || {}),
+          status: novoStatus,
+          assinaturaEntrega: isEntregue ? (edicoes[eqId]?.assinaturaEntrega || "") : "",
+          assinaturaEm: isEntregue ? (edicoes[eqId]?.assinaturaEm || new Date().toISOString()) : "",
+        };
+        edicoes[eqId] = dados;
+        if (os.numero) edicoes[os.numero] = dados;
+        localStorage.setItem("sos_eq_static_edits", JSON.stringify(edicoes));
+        void salvarEdicoesFirebase(edicoes);
+      } catch {}
+    }
+
+    // 3. Atualiza Firebase publicOS
+    const token = tokenOSPublica(os.numero, os.publicToken);
+    const registro = criarRegistroOSPublica({
+      ...os,
+      status: novoStatus,
+      assinaturaEntrega: isEntregue ? Boolean(os.assinaturaEntrega) : false,
+      assinaturaEm: isEntregue ? os.assinaturaEm : "",
+      publicToken: token,
+    }, token);
+    void salvarOSPublica(registro);
+
+    // 4. Notifica todos os componentes
+    window.dispatchEvent(new CustomEvent("sos-firebase-update"));
+    window.dispatchEvent(new Event("storage"));
+    setOrdens(carregarOrdens());
   };
 
   const abrirQrCode = (os: any) => {
@@ -392,9 +467,26 @@ export function OrdensPage({ apenasProntas = false }: { apenasProntas?: boolean 
           </div>
 
           <div className="flex min-w-0 flex-row items-center justify-between gap-2 border-t border-border/50 pt-4 lg:mt-0 lg:min-w-[140px] lg:flex-col lg:items-end lg:justify-center lg:border-l lg:border-t-0 lg:border-border/50 lg:pl-6 lg:pt-0">
-            <div className="flex flex-col items-start lg:items-end gap-1">
-              <StatusBadge status={os.status} />
-              <p className="text-[10px] font-medium text-muted-foreground tracking-wide mt-1">Prev: <span className="text-foreground">{os.previsao}</span></p>
+            <div className="flex flex-col items-start lg:items-end gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <StatusBadge status={os.status} />
+                <select
+                  aria-label="Mudar status da OS"
+                  value={os.status}
+                  onChange={(e) => alterarStatusOS(os, e.target.value)}
+                  className="cursor-pointer rounded-md border border-border bg-background px-1.5 py-0.5 text-[11px] font-semibold text-foreground hover:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary shadow-xs"
+                  title="Alterar status desta OS"
+                >
+                  <option value="Aguardando">Aguardando</option>
+                  <option value="Em análise">Em análise</option>
+                  <option value="Em reparo">Em reparo</option>
+                  <option value="Aguardando peça">Aguardando peça</option>
+                  <option value="Pronto">Pronto</option>
+                  <option value="Concluído">Concluído</option>
+                  <option value="Entregue">Entregue</option>
+                </select>
+              </div>
+              <p className="text-[10px] font-medium text-muted-foreground tracking-wide mt-0.5">Prev: <span className="text-foreground">{os.previsao}</span></p>
             </div>
             <div className="flex items-center gap-1 lg:mt-2">
               <button

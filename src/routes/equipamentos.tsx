@@ -113,6 +113,7 @@ export function EquipamentosPage() {
         const salvo = localStorage.getItem("sos_clientes");
         if (salvo) {
           const todos = JSON.parse(salvo);
+          const isEntregue = editando.status === "Entregue";
           const novos = todos.map((c: any) => {
             if (c.id === editando.clientId && c.os) {
               return {
@@ -129,8 +130,8 @@ export function EquipamentosPage() {
                   fotoAntes: editando.fotoAntes || editando.fotoLocal || "",
                   fotoDepois: editando.fotoDepois || "",
                   aprovacaoOrcamento: editando.aprovacaoOrcamento || "pendente",
-                  assinaturaEntrega: editando.assinaturaEntrega || "",
-                  assinaturaEm: editando.status === "Entregue" ? (editando.assinaturaEm || new Date().toISOString()) : "",
+                  assinaturaEntrega: isEntregue ? (editando.assinaturaEntrega || "") : "",
+                  assinaturaEm: isEntregue ? (editando.assinaturaEm || new Date().toISOString()) : "",
                 }
               };
             }
@@ -138,7 +139,19 @@ export function EquipamentosPage() {
           });
           salvarClientesLocal(novos);
           const clienteAtualizado = novos.find((cliente: any) => cliente.id === editando.clientId);
-          if (clienteAtualizado) void salvarClienteFirebase(clienteAtualizado);
+          if (clienteAtualizado) {
+            void salvarClienteFirebase(clienteAtualizado);
+            if (clienteAtualizado.os) {
+              const token = tokenOSPublica(clienteAtualizado.os.numero, clienteAtualizado.os.publicToken);
+              const reg = criarRegistroOSPublica({
+                ...clienteAtualizado.os,
+                cliente: clienteAtualizado.nome,
+                equipamento: `${clienteAtualizado.os.marca} ${clienteAtualizado.os.modelo}`.trim(),
+                publicToken: token,
+              }, token);
+              void salvarOSPublica(reg);
+            }
+          }
         }
       } catch {}
     } else {
@@ -146,31 +159,54 @@ export function EquipamentosPage() {
       try {
         const staticSalvo = localStorage.getItem("sos_eq_static_edits");
         const atual: Record<string, any> = staticSalvo ? JSON.parse(staticSalvo) : {};
+        const isEntregue = editando.status === "Entregue";
+        const dadosEditados = {
+          status: editando.status,
+          defeito: editando.defeito,
+          servico: editando.servico,
+          valor: editando.valor,
+          tecnico: editando.tecnico,
+          dataRetirada: editando.dataRetirada,
+          horaRetirada: editando.horaRetirada,
+          fotoAntes: editando.fotoAntes || editando.fotoLocal || "",
+          fotoDepois: editando.fotoDepois || "",
+          aprovacaoOrcamento: editando.aprovacaoOrcamento || "pendente",
+          assinaturaEntrega: isEntregue ? (editando.assinaturaEntrega || "") : "",
+          assinaturaEm: isEntregue ? (editando.assinaturaEm || new Date().toISOString()) : "",
+        };
+
         const novosEdits = {
           ...atual,
-          [editando.id]: {
-            status: editando.status,
-            defeito: editando.defeito,
-            servico: editando.servico,
-            valor: editando.valor,
-            tecnico: editando.tecnico,
-            dataRetirada: editando.dataRetirada,
-            horaRetirada: editando.horaRetirada,
-            fotoAntes: editando.fotoAntes || editando.fotoLocal || "",
-            fotoDepois: editando.fotoDepois || "",
-            aprovacaoOrcamento: editando.aprovacaoOrcamento || "pendente",
-            assinaturaEntrega: editando.assinaturaEntrega || "",
-            assinaturaEm: editando.status === "Entregue" ? (editando.assinaturaEm || new Date().toISOString()) : "",
-          }
+          [editando.id]: dadosEditados,
         };
+        if (editando.numeroOS) {
+          novosEdits[editando.numeroOS] = dadosEditados;
+        }
+
         localStorage.setItem("sos_eq_static_edits", JSON.stringify(novosEdits));
         void salvarEdicoesFirebase(novosEdits);
-        void salvarOSPublica(criarRegistroOSPublica({
+
+        const osVinculada = ordensIniciais.find(o => o.equipamento === `${editando.marca} ${editando.modelo}`.trim()) || {};
+        const numero = editando.numeroOS || osVinculada.numero || editando.id;
+        const token = tokenOSPublica(numero, editando.publicToken);
+        const registro = criarRegistroOSPublica({
+          ...osVinculada,
           ...editando,
-          publicToken: tokenOSPublica(editando.numeroOS || editando.id),
-        }, tokenOSPublica(editando.numeroOS || editando.id)));
+          numero,
+          cliente: editando.cliente || osVinculada.cliente,
+          equipamento: `${editando.marca || ""} ${editando.modelo || ""}`.trim() || editando.equipamento,
+          status: editando.status,
+          assinaturaEntrega: isEntregue ? Boolean(editando.assinaturaEntrega) : false,
+          assinaturaEm: isEntregue ? editando.assinaturaEm : "",
+          publicToken: token,
+        }, token);
+        void salvarOSPublica(registro);
       } catch {}
     }
+
+    // Notifica em tempo real outras abas e componentes
+    window.dispatchEvent(new CustomEvent("sos-firebase-update"));
+    window.dispatchEvent(new Event("storage"));
 
     // Re-read everything from localStorage to keep UI in sync
     carregar();

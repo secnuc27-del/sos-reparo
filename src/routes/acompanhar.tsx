@@ -1,7 +1,7 @@
 import { CheckCircle2, Clock3, Image as ImageIcon, LoaderCircle, ShieldCheck, ThumbsDown, ThumbsUp, Wrench, XCircle, PenLine } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "@tanstack/react-router";
-import { atualizarAprovacaoOS, buscarOSPublica, type PublicOSRecord } from "@/lib/osPublica";
+import { atualizarAprovacaoOS, buscarOSPublica, mapaOSPublicasLocal, type PublicOSRecord } from "@/lib/osPublica";
 
 import { ModalAssinaturaEntrega } from "@/components/ModalAssinaturaEntrega";
 import { ModalVisualizarAssinatura } from "@/components/ModalVisualizarAssinatura";
@@ -13,11 +13,11 @@ import { database } from "@/lib/firebase";
 const etapas = ["Aguardando", "Em análise", "Em reparo", "Aguardando peça", "Pronto", "Entregue"];
 
 function indiceStatus(status: string) {
-  const normalizado = status.toLowerCase();
+  const normalizado = (status || "").toLowerCase();
   if (normalizado.includes("entregue")) return 5;
   if (normalizado.includes("pronto") || normalizado.includes("conclu")) return 4;
-  if (normalizado.includes("reparo") || normalizado.includes("manuten")) return 2;
   if (normalizado.includes("peça") || normalizado.includes("peca")) return 3;
+  if (normalizado.includes("reparo") || normalizado.includes("manuten")) return 2;
   if (normalizado.includes("análise") || normalizado.includes("analise")) return 1;
   return 0;
 }
@@ -98,9 +98,24 @@ export function AcompanharPage() {
       console.warn("Firebase listener não inicializado:", e);
     }
 
-    // 3. Atualizações locais quando o mesmo navegador alterar a OS em outra aba
+    // 3. Atualizações locais quando o mesmo navegador alterar a OS em outra aba (sem loop)
     const handleAtualizacaoLocal = () => {
-      void carregar(true);
+      const mapa = mapaOSPublicasLocal();
+      const local = mapa[token];
+      if (local) {
+        setOs((prev) => {
+          if (!prev) return local;
+          const mudou =
+            prev.status !== local.status ||
+            prev.aprovacaoOrcamento !== local.aprovacaoOrcamento ||
+            prev.valor !== local.valor ||
+            prev.fotoAntes !== local.fotoAntes ||
+            prev.fotoDepois !== local.fotoDepois ||
+            prev.assinaturaEntrega !== local.assinaturaEntrega ||
+            JSON.stringify((prev as any).avaliacao) !== JSON.stringify((local as any).avaliacao);
+          return mudou ? { ...prev, ...local } : prev;
+        });
+      }
     };
 
     window.addEventListener("storage", handleAtualizacaoLocal);
