@@ -18,7 +18,7 @@ import { useState, type ReactNode } from "react";
 import { useAuth } from "./AuthProvider";
 import { useTheme } from "./ThemeProvider";
 import { logoUrl } from "@/lib/logo";
-import { useChatNaoLidas } from "@/lib/chat";
+
 import { useNovidades } from "@/lib/novidades";
 import { ModalAtualizacoes } from "./ModalAtualizacoes";
 
@@ -40,7 +40,6 @@ export function Layout({ children }: { children?: ReactNode }) {
   );
   const { theme, toggleTheme } = useTheme();
   const [menuAberto, setMenuAberto] = useState(false);
-  const { totalNaoLidas } = useChatNaoLidas("tecnico");
   const { versaoAtual, temNovidade } = useNovidades();
   const [modalNovidades, setModalNovidades] = useState(false);
 
@@ -81,11 +80,7 @@ export function Layout({ children }: { children?: ReactNode }) {
               >
                 <item.icon className={`h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
                 <span className="flex-1">{item.label}</span>
-                {item.to === "/ordens-servico" && totalNaoLidas > 0 && (
-                  <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-black text-white shadow-sm animate-in zoom-in-50 duration-200">
-                    {totalNaoLidas > 9 ? "9+" : totalNaoLidas}
-                  </span>
-                )}
+
               </Link>
             );
           })}
@@ -174,21 +169,15 @@ export function Layout({ children }: { children?: ReactNode }) {
               title={
                 temNovidade
                   ? `Nova atualização disponível (${versaoAtual}) - Clique para ver`
-                  : totalNaoLidas > 0
-                  ? `${totalNaoLidas} mensagem(ns) no chat`
                   : `Atualizações do Sistema (${versaoAtual})`
               }
               className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
               <Bell className="h-4 w-4" />
-              {temNovidade ? (
+              {temNovidade && (
                 /* Ponto azul de novidades como solicitado na imagem */
                 <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-blue-600 ring-2 ring-card shadow-sm animate-pulse" />
-              ) : totalNaoLidas > 0 ? (
-                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-black text-white shadow-sm ring-2 ring-card animate-in zoom-in-50 duration-200">
-                  {totalNaoLidas > 9 ? "9+" : totalNaoLidas}
-                </span>
-              ) : null}
+              )}
             </button>
           </div>
         </header>
