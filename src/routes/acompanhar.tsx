@@ -2,7 +2,7 @@ import { CheckCircle2, Clock3, Image as ImageIcon, LoaderCircle, ShieldCheck, Th
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "@tanstack/react-router";
 import { atualizarAprovacaoOS, buscarOSPublica, type PublicOSRecord } from "@/lib/osPublica";
-import { ChatOS } from "@/components/ChatOS";
+
 import { ModalAssinaturaEntrega } from "@/components/ModalAssinaturaEntrega";
 import { ModalVisualizarAssinatura } from "@/components/ModalVisualizarAssinatura";
 import { PesquisaSatisfacaoCliente } from "@/components/PesquisaSatisfacaoCliente";
